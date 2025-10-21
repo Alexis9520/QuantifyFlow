@@ -1,9 +1,9 @@
 "use client";
 
 import React, { useMemo } from "react";
+import { useTheme } from "next-themes";
 import { cn } from "@/lib/utils";
-import { Badge } from "@/components/ui/badge";
-import { UserDashboardData } from "@/types/dashboard-types";
+import type { UserDashboardData } from "@/types/dashboard-types";
 import type { TaskWithDetails, Subtask } from "@/types";
 import { Timestamp } from "firebase/firestore";
 import {
@@ -19,8 +19,7 @@ import {
   Calendar,
 } from "lucide-react";
 
-// --- Utils robustos (Date | Timestamp | {seconds,nanoseconds} | string | number) ---
-
+// ---------- Utils robustos de fecha ----------
 const toDateSafe = (value?: any): Date | null => {
   if (!value) return null;
   if (value instanceof Date) return isNaN(value.getTime()) ? null : value;
@@ -37,7 +36,7 @@ const toDateSafe = (value?: any): Date | null => {
     const n = Number(value.nanoseconds ?? 0);
     const d = new Date(s * 1000 + Math.floor(n / 1e6));
     return isNaN(d.getTime()) ? null : d;
-    }
+  }
   const d = new Date(value);
   return isNaN(d.getTime()) ? null : d;
 };
@@ -45,10 +44,14 @@ const toDateSafe = (value?: any): Date | null => {
 const formatDate = (dateValue?: any, locale = "es-PE"): string | null => {
   const d = toDateSafe(dateValue);
   if (!d) return null;
-  return d.toLocaleDateString(locale, { day: "2-digit", month: "2-digit", year: "numeric" });
+  return d.toLocaleDateString(locale, {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
 };
 
-// --- Micro componentes ---
+// ---------- Micro componentes ----------
 
 type IconType = React.ComponentType<React.SVGProps<SVGSVGElement>>;
 
@@ -57,27 +60,57 @@ const StatCard = ({
   value,
   Icon,
   gradient = "from-indigo-500 via-violet-500 to-fuchsia-500",
+  isLight,
 }: {
   title: string;
   value: string | number;
   Icon: IconType;
   gradient?: string;
-}) => (
-  <div className="group relative overflow-hidden rounded-2xl p-5 ring-2 ring-neutral-300/90 transition hover:ring-violet-500/60 dark:ring-white/20">
-    <div className={cn("absolute inset-0 opacity-10 blur-2xl bg-gradient-to-r", gradient)} />
-    <div className="relative z-10 flex items-center gap-4">
-      <div className={cn("rounded-xl p-3 text-white shadow-sm bg-gradient-to-br", gradient)}>
-        <Icon className="h-5 w-5" />
+  isLight: boolean;
+}) => {
+  if (isLight) {
+    // Modo claro: minimalista B/N con lineado grueso
+    return (
+      <div className="rounded-2xl border-2 border-black p-2 transition-transform hover:-translate-y-0.5">
+        <div className="flex items-center gap-4">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl border-2 border-black text-black">
+            <Icon className="h-5 w-5" />
+          </div>
+          <div>
+            <p className="text-xs text-black/70">{title}</p>
+            <p className="text-2xl font-extrabold text-black leading-tight">{value}</p>
+          </div>
+        </div>
       </div>
-      <div>
-        <p className="text-xs text-muted-foreground">{title}</p>
-        <p className="text-2xl font-bold tracking-tight">{value}</p>
+    );
+  }
+
+  // Modo oscuro: diseño existente con anillos y acentos
+  return (
+    <div className="group relative overflow-hidden rounded-2xl p-5 ring-2 ring-neutral-300/90 transition hover:ring-violet-500/60 dark:ring-white/20">
+      <div className={cn("absolute inset-0 opacity-10 blur-2xl bg-gradient-to-r", gradient)} />
+      <div className="relative z-10 flex items-center gap-4">
+        <div className={cn("rounded-xl p-3 text-white shadow-sm bg-gradient-to-br", gradient)}>
+          <Icon className="h-5 w-5" />
+        </div>
+        <div>
+          <p className="text-xs text-muted-foreground">{title}</p>
+          <p className="text-2xl font-bold tracking-tight">{value}</p>
+        </div>
       </div>
     </div>
-  </div>
-);
+  );
+};
 
-const PriorityChip = ({ priority }: { priority?: string }) => {
+const PriorityChip = ({ priority, isLight }: { priority?: string; isLight: boolean }) => {
+  if (isLight) {
+    return (
+      <span className="rounded-full border-2 border-black px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-black">
+        {priority}
+      </span>
+    );
+  }
+
   const p = String(priority || "").toLowerCase();
   const map: Record<string, string> = {
     alta: "text-rose-500 ring-rose-500/40",
@@ -91,9 +124,18 @@ const PriorityChip = ({ priority }: { priority?: string }) => {
   return <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-medium ring-2", cls)}>{priority}</span>;
 };
 
-const StatusBadge = ({ status }: { status?: string }) => {
+const StatusBadge = ({ status, isLight }: { status?: string; isLight: boolean }) => {
   const s = String(status || "").toLowerCase();
   const label = s.replace(/-/g, " ") || "—";
+
+  if (isLight) {
+    return (
+      <span className="rounded-full border-2 border-black px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-black">
+        {label}
+      </span>
+    );
+  }
+
   return (
     <span className="rounded-full px-2 py-0.5 text-[10px] font-medium ring-2 ring-neutral-300/80 text-muted-foreground dark:ring-white/20">
       {label}
@@ -101,12 +143,71 @@ const StatusBadge = ({ status }: { status?: string }) => {
   );
 };
 
-const TaskCard = ({ task }: { task: TaskWithDetails }) => {
+const TaskCard = ({ task, isLight }: { task: TaskWithDetails; isLight: boolean }) => {
   const due = formatDate(task.dueDate);
   const subtasks = Array.isArray(task.subtasks) ? task.subtasks : [];
   const done = subtasks.filter((s) => s.completed).length;
   const pct = subtasks.length ? Math.round((done / subtasks.length) * 100) : 0;
 
+  if (isLight) {
+    // Modo claro: tarjeta con borde grueso en negro, sin colores
+    return (
+      <article className="relative rounded-2xl border-2 border-black p-2">
+        <h4 className="text-lg font-extrabold text-black">{task.title}</h4>
+        <p className="mt-1 text-sm text-black/70">{task.description || "Sin descripción."}</p>
+
+        <div className="mt-3 flex flex-wrap items-center gap-3 text-xs">
+          <div className="inline-flex items-center gap-2">
+            <span className="text-black/70">Prioridad:</span>
+            <PriorityChip priority={task.priority as any} isLight />
+          </div>
+          <div className="inline-flex items-center gap-2">
+            <span className="text-black/70">Estado:</span>
+            <StatusBadge status={task.status} isLight />
+          </div>
+          {due && (
+            <div className="inline-flex items-center gap-2">
+              <Calendar className="h-3.5 w-3.5 text-black" />
+              <span className="text-black/70">Vence:</span>
+              <span className="font-semibold text-black">{due}</span>
+            </div>
+          )}
+        </div>
+
+        {subtasks.length > 0 && (
+          <div className="mt-4">
+            <div className="mb-2 flex items-center justify-between">
+              <h5 className="text-xs font-extrabold text-black uppercase tracking-wide">Subtareas</h5>
+              <span className="text-xs text-black/70">
+                {done} de {subtasks.length}
+              </span>
+            </div>
+            <div className="h-2 w-full overflow-hidden rounded-full border-2 border-black">
+              <div
+                className="h-full bg-black transition-[width]"
+                style={{ width: `${pct}%` }}
+              />
+            </div>
+
+            <ul className="mt-3 space-y-1.5">
+              {subtasks.map((sub: Subtask) => (
+                <li key={sub.id} className="flex items-center text-sm text-black">
+                  {sub.completed ? (
+                    <CheckSquare className="mr-2 h-4 w-4 text-black" />
+                  ) : (
+                    <Square className="mr-2 h-4 w-4 text-black/60" />
+                  )}
+                  <span className={cn(sub.completed && "line-through text-black/60")}>{sub.title}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </article>
+    );
+  }
+
+  // Modo oscuro existente (con acentos de color)
   const accent =
     task.status === "done"
       ? "bg-emerald-500"
@@ -127,10 +228,12 @@ const TaskCard = ({ task }: { task: TaskWithDetails }) => {
 
       <div className="mt-3 flex flex-wrap items-center gap-3 text-xs">
         <div className="inline-flex items-center gap-1">
-          <span className="text-muted-foreground">Prioridad:</span> <PriorityChip priority={task.priority as any} />
+          <span className="text-muted-foreground">Prioridad:</span>{" "}
+          <PriorityChip priority={task.priority as any} isLight={false} />
         </div>
         <div className="inline-flex items-center gap-1">
-          <span className="text-muted-foreground">Estado:</span> <StatusBadge status={task.status} />
+          <span className="text-muted-foreground">Estado:</span>{" "}
+          <StatusBadge status={task.status} isLight={false} />
         </div>
         {due && (
           <div className="inline-flex items-center gap-1">
@@ -177,24 +280,24 @@ const TaskCard = ({ task }: { task: TaskWithDetails }) => {
   );
 };
 
-// --- Props ---
-
+// ---------- Props ----------
 interface MemberDashboardProps {
   userName: string | null;
   memberData: UserDashboardData | null;
 }
 
-// --- Componente Principal ---
-
+// ---------- Componente principal ----------
 export function MemberDashboard({ userName, memberData }: MemberDashboardProps) {
-  // Skeleton
+  const { resolvedTheme } = useTheme();
+  const isLight = resolvedTheme === "light";
+
   if (!memberData) {
     return (
       <div className="grid min-h-[50vh] place-items-center">
         <div className="text-center">
-          <Loader2 className="mx-auto mb-3 h-8 w-8 animate-spin text-primary" />
-          <h1 className="text-xl font-semibold">Cargando dashboard...</h1>
-          <p className="text-sm text-muted-foreground">Un momento, por favor.</p>
+          <Loader2 className={cn("mx-auto mb-3 h-8 w-8 animate-spin", isLight ? "text-black" : "text-primary")} />
+          <h1 className={cn("text-xl font-semibold", isLight ? "text-black" : "")}>Cargando dashboard...</h1>
+          <p className={cn("text-sm", isLight ? "text-black/60" : "text-muted-foreground")}>Un momento, por favor.</p>
         </div>
       </div>
     );
@@ -216,7 +319,6 @@ export function MemberDashboard({ userName, memberData }: MemberDashboardProps) 
     return { total: t, todo: td, inProgress: ip, done: dn };
   }, [assignedTasks]);
 
-  // Ordena tareas por fecha de vencimiento ascendente
   const tasksSorted = useMemo(() => {
     return [...assignedTasks].sort((a, b) => {
       const ad = toDateSafe(a.dueDate)?.getTime() ?? Number.POSITIVE_INFINITY;
@@ -226,77 +328,125 @@ export function MemberDashboard({ userName, memberData }: MemberDashboardProps) 
   }, [assignedTasks]);
 
   return (
-    <div className="w-full px-4 py-6 sm:px-6 lg:px-8 2xl:px-12">
+    <div className={cn("w-full px-4 py-6 sm:px-6 lg:px-8 2xl:px-12", isLight && "bg-white text-black")}>
       <header className="mb-8">
-        <h1 className="text-3xl font-bold">Hola {user.displayName || userName || "usuario"} 👋</h1>
-        <p className="text-sm text-muted-foreground">Este es tu resumen general.</p>
+        <h1 className={cn("text-3xl font-extrabold", isLight ? "text-black" : "")}>
+          Hola {user.displayName || userName || "usuario"} 👋
+        </h1>
+        <p className={cn("text-sm", isLight ? "text-black/60" : "text-muted-foreground")}>Este es tu resumen general.</p>
       </header>
 
       {/* Estadísticas */}
       <section className="mb-8 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <StatCard title="Tareas totales" value={total} Icon={ListChecks} />
-        <StatCard title="Pendientes" value={todo} Icon={Clock} gradient="from-amber-500 via-orange-500 to-rose-500" />
-        <StatCard title="En progreso" value={inProgress} Icon={ActivityIcon} gradient="from-sky-500 via-indigo-500 to-violet-500" />
-        <StatCard title="Completadas" value={done} Icon={CheckCircle2} gradient="from-emerald-500 via-teal-500 to-cyan-500" />
+        <StatCard title="Tareas totales" value={total} Icon={ListChecks} isLight={isLight} />
+        <StatCard
+          title="Pendientes"
+          value={todo}
+          Icon={Clock}
+          gradient="from-amber-500 via-orange-500 to-rose-500"
+          isLight={isLight}
+        />
+        <StatCard
+          title="En progreso"
+          value={inProgress}
+          Icon={ActivityIcon}
+          gradient="from-sky-500 via-indigo-500 to-violet-500"
+          isLight={isLight}
+        />
+        <StatCard
+          title="Completadas"
+          value={done}
+          Icon={CheckCircle2}
+          gradient="from-emerald-500 via-teal-500 to-cyan-500"
+          isLight={isLight}
+        />
       </section>
 
       <main className="grid grid-cols-1 gap-8 lg:grid-cols-3">
         {/* Tareas */}
         <section className="lg:col-span-2">
           <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-xl font-semibold">Mis tareas asignadas</h2>
-            <span className="text-xs text-muted-foreground">{total}</span>
+            <h2 className={cn("text-xl font-semibold", isLight ? "text-black" : "")}>Mis tareas asignadas</h2>
+            <span className={cn("text-xs", isLight ? "text-black/60" : "text-muted-foreground")}>{total}</span>
           </div>
 
           {tasksSorted.length > 0 ? (
             <div className="grid grid-cols-1 gap-4">
               {tasksSorted.map((task) => (
-                <TaskCard key={task.id} task={task} />
+                <TaskCard key={task.id} task={task} isLight={isLight} />
               ))}
             </div>
           ) : (
-            <div className="rounded-2xl p-8 text-center ring-2 ring-neutral-300/90 dark:ring-white/20">
-              <CheckCircle2 className="mx-auto mb-3 h-10 w-10 text-emerald-500" />
-              <h3 className="text-lg font-semibold">¡Sin tareas asignadas!</h3>
-              <p className="text-sm text-muted-foreground">Disfruta tu día.</p>
+            <div
+              className={cn(
+                "rounded-2xl p-8 text-center",
+                isLight ? "border-2 border-black" : "ring-2 ring-neutral-300/90 dark:ring-white/20"
+              )}
+            >
+              <CheckCircle2 className={cn("mx-auto mb-3 h-10 w-10", isLight ? "text-black" : "text-emerald-500")} />
+              <h3 className={cn("text-lg font-semibold", isLight ? "text-black" : "")}>¡Sin tareas asignadas!</h3>
+              <p className={cn("text-sm", isLight ? "text-black/60" : "text-muted-foreground")}>Disfruta tu día.</p>
             </div>
           )}
         </section>
 
         {/* Lateral */}
         <aside className="space-y-6">
-          <div className="rounded-2xl p-4 ring-2 ring-neutral-300/90 dark:ring-white/20">
-            <h3 className="mb-3 flex items-center gap-2 text-base font-semibold">
-              <Users className="h-5 w-5 text-primary" /> Mi equipo
+          <div
+            className={cn(
+              "rounded-2xl p-4",
+              isLight ? "border-2 border-black" : "ring-2 ring-neutral-300/90 dark:ring-white/20"
+            )}
+          >
+            <h3 className={cn("mb-3 flex items-center gap-2 text-base font-extrabold", isLight ? "text-black" : "")}>
+              <Users className={cn("h-5 w-5", isLight ? "text-black" : "text-primary")} /> Mi equipo
             </h3>
             {teams.length > 0 ? (
-              <ul className="divide-y divide-neutral-200/60 dark:divide-white/10">
+              <ul
+                className={cn(
+                  "divide-y",
+                  isLight ? "divide-black" : "divide-neutral-200/60 dark:divide-white/10"
+                )}
+              >
                 {teams.map((team) => (
-                  <li key={team.id} className="py-2 text-sm">
+                  <li key={team.id} className={cn("py-2 text-sm", isLight ? "text-black" : "text-card-foreground")}>
                     {team.teamName}
                   </li>
                 ))}
               </ul>
             ) : (
-              <p className="text-sm text-muted-foreground">Aún no eres miembro de ningún equipo.</p>
+              <p className={cn("text-sm", isLight ? "text-black/60" : "text-muted-foreground")}>
+                Aún no eres miembro de ningún equipo.
+              </p>
             )}
           </div>
 
-          <div className="rounded-2xl p-4 ring-2 ring-neutral-300/90 dark:ring-white/20">
-            <h3 className="mb-3 flex items-center gap-2 text-base font-semibold">
-              <History className="h-5 w-5 text-primary" /> Actividad reciente
+          <div
+            className={cn(
+              "rounded-2xl p-4",
+              isLight ? "border-2 border-black" : "ring-2 ring-neutral-300/90 dark:ring-white/20"
+            )}
+          >
+            <h3 className={cn("mb-3 flex items-center gap-2 text-base font-extrabold", isLight ? "text-black" : "")}>
+              <History className={cn("h-5 w-5", isLight ? "text-black" : "text-primary")} /> Actividad reciente
             </h3>
             {activityLogs.length > 0 ? (
-              <ul className="divide-y divide-neutral-200/60 dark:divide-white/10">
+              <ul className={cn("divide-y", isLight ? "divide-black" : "divide-neutral-200/60 dark:divide-white/10")}>
                 {activityLogs.slice(0, 6).map((log) => (
                   <li key={log.id} className="py-2">
-                    <p className="text-sm capitalize">{String(log.action || "").replace(/_/g, " ")}</p>
-                    <p className="mt-1 text-xs text-muted-foreground">{formatDate(log.createdAt)}</p>
+                    <p className={cn("text-sm capitalize", isLight ? "text-black" : "")}>
+                      {String(log.action || "").replace(/_/g, " ")}
+                    </p>
+                    <p className={cn("mt-1 text-xs", isLight ? "text-black/60" : "text-muted-foreground")}>
+                      {formatDate(log.createdAt)}
+                    </p>
                   </li>
                 ))}
               </ul>
             ) : (
-              <p className="text-sm text-muted-foreground">No hay actividad reciente para mostrar.</p>
+              <p className={cn("text-sm", isLight ? "text-black/60" : "text-muted-foreground")}>
+                No hay actividad reciente para mostrar.
+              </p>
             )}
           </div>
         </aside>
