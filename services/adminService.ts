@@ -61,7 +61,7 @@ export const getAdminDashboardData = async (teamId: string): Promise<AdminDashbo
                     // ✨ Lógica más explícita y segura
                     return {
                         ...user,
-                        role: memberInfo ? memberInfo.role : 'member', // Provee un fallback explícito
+                        role: memberInfo ? memberInfo.rol : 'member', // Usar 'rol' del TeamMember y proveer un fallback explícito
                         joinedAt: memberInfo ? memberInfo.joinedAt : undefined, // Asigna undefined si no se encuentra
                     };
                 });
