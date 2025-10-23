@@ -12,38 +12,8 @@ import ProjectHeader from "@/components/projects/kanban/ProjectHeader";
 import KanbanColumn from "@/components/projects/kanban/KanbanColumn";
 import TaskModal from "@/components/projects/kanban/TaskModal";
 import type { TaskWithDetails } from "@/types";
-
-// Mensaje de carga minimalista (sin barra ni tarjetas)
-// Light: blanco/negro con borde-2; Dark: panel sutil
-const LoadingNotice = ({ isLight }: { isLight: boolean }) => (
-  <div
-    className={
-      isLight
-        ? "rounded-2xl border-2 border-black p-4"
-        : "rounded-2xl bg-card/60 p-4 shadow-[0_8px_30px_-20px_rgba(0,0,0,0.6)] backdrop-blur"
-    }
-    role="status"
-    aria-live="polite"
-  >
-    <p className={isLight ? "text-lg font-extrabold text-black" : "text-lg font-semibold"}>
-      Cargando tareas…
-    </p>
-    <div className="mt-3 flex items-end gap-2">
-      <span
-        className={isLight ? "h-2.5 w-2.5 animate-bounce rounded-full bg-black" : "h-2.5 w-2.5 animate-bounce rounded-full bg-white/80"}
-        style={{ animationDelay: "0ms" }}
-      />
-      <span
-        className={isLight ? "h-2.5 w-2.5 animate-bounce rounded-full bg-black" : "h-2.5 w-2.5 animate-bounce rounded-full bg-white/80"}
-        style={{ animationDelay: "140ms" }}
-      />
-      <span
-        className={isLight ? "h-2.5 w-2.5 animate-bounce rounded-full bg-black" : "h-2.5 w-2.5 animate-bounce rounded-full bg-white/80"}
-        style={{ animationDelay: "280ms" }}
-      />
-    </div>
-  </div>
-);
+import KanbanColumnsWrapper from "@/components/projects/kanban/KanbanColumnsWrapper";
+import Spinner from "@/components/ui/spinner";
 
 interface ProjectPageProps {
   params: { projectId: string };
@@ -100,16 +70,8 @@ export default function ProjectPage({ params }: ProjectPageProps) {
 
   const isLoading = isBoardLoading || isTeamLoading;
 
-  // Cargando: solo mensaje con animación (sin barra ni skeleton)
-  if (isLoading) {
-    return (
-      <div className="w-full px-4 py-6 sm:px-6 lg:px-8 2xl:px-12">
-        <LoadingNotice isLight={isLight} />
-      </div>
-    );
-  }
-
-  if (!teamId) {
+  // Errores y estados sin equipo
+  if (!teamId && !isTeamLoading) {
     return (
       <div className="w-full px-4 py-10 sm:px-6 lg:px-8 2xl:px-12">
         <p className={isLight ? "text-center text-sm font-semibold text-black" : "text-center text-sm font-medium text-destructive"}>
@@ -130,10 +92,9 @@ export default function ProjectPage({ params }: ProjectPageProps) {
   }
 
   return (
-    // Contenedor fluido
     <div className="w-full px-4 py-6 sm:px-6 lg:px-8 2xl:px-12">
-      {/* Header de proyecto sticky sutil (queda bajo el header global) */}
-      <div className="-mx-4 sticky top-0 z-30 bg-background/70 px-4 py-3 backdrop-blur supports-[backdrop-filter]:backdrop-blur-md sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 2xl:-mx-12 2xl:px-12">
+      {/* Header normal (NO sticky): se desplaza con el scroll */}
+      <div className="-mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 2xl:-mx-12 2xl:px-12">
         <ProjectHeader
           projectId={projectId || "Proyecto"}
           teamMembers={teamMembers}
@@ -149,15 +110,24 @@ export default function ProjectPage({ params }: ProjectPageProps) {
       </div>
 
       {/* Tablero Kanban horizontal */}
-      <DragDropContext onDragEnd={handleDragEnd as (result: DropResult) => void}>
-        <div className="mt-4 flex gap-4 overflow-x-auto pb-6">
-          {Object.values(columns).map((column) => (
-            <div key={column.id} className="min-w-[320px] flex-shrink-0 sm:min-w-[360px] lg:min-w-[380px]">
-              <KanbanColumn column={column} onTaskClick={openEditModal} onRefreshBoard={refreshTasks} />
-            </div>
-          ))}
+      {isLoading ? (
+        <div className="py-10 flex justify-center">
+          <Spinner size={40} label="Cargando tareas…" />
         </div>
-      </DragDropContext>
+      ) : (
+        <DragDropContext onDragEnd={handleDragEnd as (result: DropResult) => void}>
+          <KanbanColumnsWrapper className="mt-4 pb-6">
+            {Object.values(columns).map((column) => (
+              <KanbanColumn
+                key={column.id}
+                column={column}
+                onTaskClick={openEditModal}
+                onRefreshBoard={refreshTasks}
+              />
+            ))}
+          </KanbanColumnsWrapper>
+        </DragDropContext>
+      )}
 
       {/* Modal de tarea */}
       {isModalOpen && user && (

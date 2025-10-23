@@ -11,30 +11,8 @@ import { ProjectCard } from "@/components/projects/ProjectCard";
 import { CreateProjectModal } from "@/components/projects/CreateProjectModal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import Spinner from "@/components/ui/spinner";
 import { PlusCircle, Search, RefreshCcw } from "lucide-react";
-
-// Skeleton — adaptado a modo claro (B/N) y modo oscuro
-const SkeletonLoader = ({ isLight }: { isLight: boolean }) => (
-  <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-    {Array.from({ length: 6 }).map((_, i) => (
-      <div
-        key={i}
-        className={
-          isLight
-            ? "rounded-2xl border-2 border-black p-5"
-            : "relative overflow-hidden rounded-2xl bg-card/60 p-5 shadow-[0_8px_30px_-20px_rgba(0,0,0,0.6)] backdrop-blur supports-[backdrop-filter]:backdrop-blur-xl"
-        }
-      >
-        <div className={isLight ? "h-6 w-3/4 rounded-md bg-black/10" : "h-6 w-3/4 animate-pulse rounded-md bg-muted/60"} />
-        <div className={isLight ? "mt-3 h-4 w-full rounded-md bg-black/10" : "mt-3 h-4 w-full animate-pulse rounded-md bg-muted/50"} />
-        <div className={isLight ? "mt-2 h-4 w-1/2 rounded-md bg-black/10" : "mt-2 h-4 w-1/2 animate-pulse rounded-md bg-muted/50"} />
-        <div className="mt-6 flex justify-end">
-          <div className={isLight ? "h-5 w-24 rounded-md bg-black/10" : "h-5 w-24 animate-pulse rounded-md bg-muted/60"} />
-        </div>
-      </div>
-    ))}
-  </div>
-);
 
 export default function ProjectsPage() {
   const { user } = useAuth();
@@ -183,13 +161,15 @@ export default function ProjectsPage() {
 
       {/* Contenido */}
       {isLoading ? (
-        <SkeletonLoader isLight={isLight} />
+        <div className="py-10 flex justify-center">
+          <Spinner size={40} label="Cargando proyectos…" />
+        </div>
       ) : projects.length === 0 ? (
         <div
           className={
             isLight
               ? "rounded-2xl border-2 border-black p-10 text-center"
-              : "relative overflow-hidden rounded-2xl bg-card/60 p-10 text-center shadow-[0_8px_30px_-20px_rgba(0,0,0,0.6)] backdrop-blur supports-[backdrop-filter]:backdrop-blur-xl"
+              : "relative overflow-hidden rounded-2xl bg-card/60 p-10 text-center shadow-[0_8px_30px_-20px_rgba(0,0,0,0.6)]"
           }
         >
           {!isLight && <div className="absolute inset-0 opacity-20 blur-2xl bg-gradient-to-r from-indigo-500 via-violet-500 to-fuchsia-500" />}

@@ -91,14 +91,19 @@ export default function TaskCard({ task, index, onClick, onUpdate }: TaskCardPro
           ref={provided.innerRef}
           {...provided.draggableProps}
           {...provided.dragHandleProps}
+          // CLAVE: aplicar el style que provee react-beautiful-dnd para evitar el desfase
+          style={provided.draggableProps.style}
           onClick={onClick}
           className={cx(
-            "group relative rounded-2xl p-4 transition-all",
-            "ring-2 ring-neutral-200/80 dark:ring-white/20 hover:ring-violet-500/50 dark:hover:ring-violet-400/60",
-            snapshot.isDragging && "ring-violet-500/70 dark:ring-primary/70"
+            "group relative rounded-2xl p-4 transition-shadow select-none",
+            "ring-2 ring-neutral-200/80 dark:ring-white/20 hover:shadow-lg",
+            "bg-white/70 dark:bg-black/20",
+            "text-black dark:text-white",
+            snapshot.isDragging && "ring-violet-500/70"
           )}
           role="button"
           tabIndex={0}
+          aria-grabbed={snapshot.isDragging}
         >
           <span className={cx("absolute left-0 top-0 h-full w-1.5 rounded-l-2xl", accentClass)} />
 
@@ -151,8 +156,14 @@ export default function TaskCard({ task, index, onClick, onUpdate }: TaskCardPro
               {task.tags.map((tag) => (
                 <span
                   key={tag.id}
-                  className="rounded-full px-2 py-0.5 text-[10px] font-medium ring-2 ring-neutral-200/80 dark:ring-white/20"
-                  style={{ color: "#111827", backgroundColor: "transparent" }}
+                  className={cx(
+                    "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium",
+                    "ring-1 ring-neutral-200/70 dark:ring-white/15",
+                    // texto correcto en ambos modos
+                    "text-black dark:text-white",
+                    // fondo sutil para contraste en dark
+                    "bg-black/5 dark:bg-white/10"
+                  )}
                 >
                   <span
                     className="mr-1 inline-block h-2 w-2 rounded-full"
@@ -173,7 +184,7 @@ export default function TaskCard({ task, index, onClick, onUpdate }: TaskCardPro
                   className="h-7 w-7 rounded-full object-cover ring-2 ring-neutral-200/80 dark:ring-white/20"
                 />
               ) : (
-                <div className="flex h-7 w-7 items-center justify-center rounded-full text-[10px] font-semibold ring-2 ring-neutral-200/80 dark:ring-white/20">
+                <div className="flex h-7 w-7 items-center justify-center rounded-full text-[10px] font-semibold ring-2 ring-neutral-200/80 dark:ring-white/20 bg-black/5 dark:bg-white/10">
                   {initials}
                 </div>
               )}

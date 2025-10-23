@@ -1,4 +1,20 @@
 'use client';
+
+import React, { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
+import {
+  Plus,
+  Trash2,
+  Link as LinkIcon,
+  Clipboard,
+  Check,
+  AlertTriangle,
+  Settings2,
+  Tags,
+  ArrowRight,
+} from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+
 import { useAuth } from '@/context/AuthContext';
 import { useUserSettings } from '@/services/useUserSettings';
 import {
@@ -8,25 +24,10 @@ import {
   createTag,
   deleteTag,
   Tag,
-  Team,
 } from '@/services/teamService';
-// 💡 Importamos más iconos y framer-motion
-import {
-  Plus,
-  Trash2,
-  Link as LinkIcon,
-  Clipboard,
-  Loader2,
-  Check,
-  AlertTriangle,
-  Settings2,
-  Tags,
-} from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { useCallback, useEffect, useState } from 'react';
+import Spinner from '@/components/ui/spinner';
 
 // --- SUBCOMPONENTE: TeamCodeGenerator (Mejorado) ---
-
 const TeamCodeGenerator: React.FC<{ teamId: string }> = ({ teamId }) => {
   const [code, setCode] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -55,7 +56,6 @@ const TeamCodeGenerator: React.FC<{ teamId: string }> = ({ teamId }) => {
   };
 
   return (
-    // 💡 UI: Usamos 'accent' para destacar esta sección
     <section className="bg-accent border border-primary/20 p-6 rounded-lg shadow-sm">
       <h2 className="text-xl font-semibold mb-3 flex items-center gap-2 text-accent-foreground">
         <LinkIcon className="w-5 h-5" /> Código de Invitación
@@ -71,11 +71,11 @@ const TeamCodeGenerator: React.FC<{ teamId: string }> = ({ teamId }) => {
       )}
 
       {code ? (
-        <div className="flex flex-wrap sm:flex-nowrap items-center space-x-3 bg-background border border-input p-3 rounded-md">
+        <div className="flex flex-wrap sm:flex-nowrap items-center gap-3 bg-background border border-input p-3 rounded-md">
           <span className="text-2xl font-mono font-bold text-primary flex-grow">
             {code}
           </span>
-          {/* 💡 UX: Botón de copiado con estado animado */}
+
           <button
             onClick={handleCopy}
             className={`p-2 rounded-md transition-colors text-sm font-medium inline-flex items-center
@@ -111,28 +111,27 @@ const TeamCodeGenerator: React.FC<{ teamId: string }> = ({ teamId }) => {
               )}
             </AnimatePresence>
           </button>
-          {/* 💡 UX: Botón de regenerar con estado de carga */}
+
           <button
             onClick={handleGenerate}
-            className="text-sm text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+            className="text-sm text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50 inline-flex items-center"
             disabled={isGenerating}
           >
             {isGenerating ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
+              <Spinner size={14} label="" className="text-muted-foreground" />
             ) : (
               'Generar Nuevo'
             )}
           </button>
         </div>
       ) : (
-        // 💡 UI: Botón primario con estado de carga
         <button
           onClick={handleGenerate}
           disabled={isGenerating}
           className="inline-flex items-center px-4 py-2 bg-primary text-primary-foreground font-medium rounded-md hover:bg-primary/90 transition-colors disabled:opacity-50"
         >
           {isGenerating ? (
-            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            <Spinner size={16} label="" className="mr-2 text-primary-foreground" />
           ) : (
             <Plus className="w-4 h-4 mr-2" />
           )}
@@ -144,7 +143,6 @@ const TeamCodeGenerator: React.FC<{ teamId: string }> = ({ teamId }) => {
 };
 
 // --- COMPONENTE PRINCIPAL (Mejorado) ---
-
 export default function TeamSettingsPage() {
   const { user: authUser } = useAuth();
   const userId = authUser?.uid || '';
@@ -162,7 +160,7 @@ export default function TeamSettingsPage() {
 
   const [teamName, setTeamName] = useState('');
   const [newTagName, setNewTagName] = useState('');
-  const [newTagColor, setNewTagColor] = useState('#0d9488'); // Un color teal por defecto
+  const [newTagColor, setNewTagColor] = useState('#0d9488');
   const [isSavingTeam, setIsSavingTeam] = useState(false);
   const [isCreatingTag, setIsCreatingTag] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
@@ -176,12 +174,10 @@ export default function TeamSettingsPage() {
 
   useEffect(() => {
     if (tags) {
-      // Ordenamos alfabéticamente
       setCurrentTags(tags.sort((a, b) => a.tagName.localeCompare(b.tagName)));
     }
   }, [tags]);
 
-  // 💡 UX: Estado de "No Autenticado" mejorado
   if (!authUser) {
     return (
       <div className="p-8 flex flex-col items-center justify-center text-destructive">
@@ -191,16 +187,15 @@ export default function TeamSettingsPage() {
     );
   }
 
-  // 💡 UX: Estado de "Carga" mejorado
+  // Cargando datos de usuario/equipo
   if (isUserLoading || isTeamDataLoading) {
     return (
       <div className="p-8 flex items-center justify-center text-muted-foreground">
-        <Loader2 className="w-8 h-8 animate-spin" />
+        <Spinner size={40} label="Cargando datos del equipo…" className="text-muted-foreground" />
       </div>
     );
   }
 
-  // 💡 UX: Estado de "Acceso Denegado" mejorado
   if (!isAdmin || !activeTeamId || !team) {
     return (
       <div className="p-8 flex flex-col items-center justify-center text-destructive">
@@ -210,8 +205,6 @@ export default function TeamSettingsPage() {
       </div>
     );
   }
-
-  // --- Manejadores (Sin cambios en la lógica) ---
 
   const handleTeamNameSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -248,7 +241,6 @@ export default function TeamSettingsPage() {
   };
 
   const handleDeleteTag = async (tagId: string) => {
-    // 💡 UX: Usamos un confirm simple, pero para producción se recomienda un Modal
     if (window.confirm('¿Estás seguro de que quieres eliminar esta etiqueta?')) {
       try {
         await deleteTag(tagId);
@@ -260,7 +252,6 @@ export default function TeamSettingsPage() {
   };
 
   return (
-    // 💡 UI: Padding responsivo y animación de entrada
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
@@ -276,7 +267,6 @@ export default function TeamSettingsPage() {
         <TeamCodeGenerator teamId={activeTeamId} />
 
         {/* SECCIÓN 2: Nombre del Equipo */}
-        {/* 💡 UI: Estilo de tarjeta (card) */}
         <section className="bg-card text-card-foreground border rounded-lg shadow-sm">
           <h2 className="text-xl font-semibold p-6 border-b flex items-center gap-2">
             <Settings2 className="w-5 h-5" />
@@ -312,18 +302,18 @@ export default function TeamSettingsPage() {
                       disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isSavingTeam ? (
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  <Spinner size={16} label="" className="mr-2 text-primary-foreground" />
                 ) : null}
                 {isSavingTeam ? 'Guardando...' : 'Guardar Nombre'}
               </button>
-              {/* 💡 UX: Mensaje de éxito animado */}
+
               <AnimatePresence>
                 {saveSuccess && (
                   <motion.span
                     initial={{ opacity: 0, x: -10 }}
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: -10 }}
-                    className="text-emerald-600 font-medium text-sm flex items-center gap-1.5"
+                    className="text-emerald-600 dark:text-emerald-400 font-medium text-sm flex items-center gap-1.5"
                   >
                     <Check className="w-4 h-4" />
                     Nombre actualizado.
@@ -342,7 +332,6 @@ export default function TeamSettingsPage() {
           </h2>
 
           <div className="p-6">
-            {/* 💡 UX: Lista de etiquetas animada */}
             <div className="mb-6 space-y-2">
               <AnimatePresence>
                 {currentTags.map((tag) => (
@@ -359,7 +348,7 @@ export default function TeamSettingsPage() {
                       <span
                         style={{ backgroundColor: tag.color }}
                         className="w-4 h-4 rounded-full border border-black/10"
-                      ></span>
+                      />
                       <span className="font-medium text-foreground">
                         {tag.tagName}
                       </span>
@@ -374,6 +363,7 @@ export default function TeamSettingsPage() {
                   </motion.div>
                 ))}
               </AnimatePresence>
+
               {currentTags.length === 0 && (
                 <p className="text-muted-foreground text-sm text-center py-4">
                   No hay etiquetas creadas para este equipo.
@@ -383,7 +373,6 @@ export default function TeamSettingsPage() {
 
             <hr className="my-6 border-border" />
 
-            {/* Formulario de Creación */}
             <h3 className="text-lg font-medium mb-3 text-foreground">
               Crear Nueva Etiqueta
             </h3>
@@ -408,6 +397,7 @@ export default function TeamSettingsPage() {
                   required
                 />
               </div>
+
               <div>
                 <label
                   htmlFor="newTagColor"
@@ -415,7 +405,6 @@ export default function TeamSettingsPage() {
                 >
                   Color
                 </label>
-                {/* 💡 UI: Input de color estilizado */}
                 <input
                   id="newTagColor"
                   type="color"
@@ -429,7 +418,6 @@ export default function TeamSettingsPage() {
               <button
                 type="submit"
                 disabled={isCreatingTag || !newTagName.trim()}
-                // 💡 UI: Usamos 'secondary' para una acción de creación
                 className="inline-flex items-center px-4 py-2 text-sm font-medium text-secondary-foreground
                       bg-secondary rounded-md transition-colors
                       hover:bg-secondary/80
@@ -437,7 +425,7 @@ export default function TeamSettingsPage() {
                       disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isCreatingTag ? (
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  <Spinner size={16} label="" className="mr-2 text-secondary-foreground" />
                 ) : (
                   <Plus className="w-4 h-4 mr-2" />
                 )}

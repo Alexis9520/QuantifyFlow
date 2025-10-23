@@ -97,3 +97,7 @@ html {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
+
+:root {
+  --app-topbar-h: 64px; /* ajusta a la altura real de tu header global */
+}
