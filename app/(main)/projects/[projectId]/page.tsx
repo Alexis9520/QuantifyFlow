@@ -135,7 +135,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
       {/* Header de proyecto sticky sutil (queda bajo el header global) */}
       <div className="-mx-4 sticky top-0 z-30 bg-background/70 px-4 py-3 backdrop-blur supports-[backdrop-filter]:backdrop-blur-md sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 2xl:-mx-12 2xl:px-12">
         <ProjectHeader
-          projectName={currentTeam?.teamName || "Proyecto"}
+          projectId={projectId || "Proyecto"}
           teamMembers={teamMembers}
           availableTags={availableTags}
           searchQuery={searchQuery}

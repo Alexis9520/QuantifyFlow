@@ -1,17 +1,22 @@
-import { collection, query, where, getDocs, addDoc, serverTimestamp } from 'firebase/firestore';
+import {
+  collection,
+  query,
+  where,
+  getDocs,
+  addDoc,
+  doc, // Importar doc
+  getDoc, // Importar getDoc
+  updateDoc, // Importar updateDoc
+  serverTimestamp,
+} from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { Project } from '@/types'; // Asegúrate de que este tipo coincida con tu nueva estructura
+import { Project, ProjectUrl } from '@/types'; // Asegúrate de que este tipo coincida con tu nueva estructura
 
-/**
- * Obtiene todos los proyectos activos de un equipo y cuenta sus tareas.
- * @param teamId - El ID del equipo.
- * @returns Una promesa que resuelve a un array de proyectos con taskCount.
- */
+
 export async function getProjectsByTeamWithTaskCount(teamId: string): Promise<Project[]> {
   if (!teamId) return [];
 
   const projectsRef = collection(db, 'projects');
-  // 👇 CAMBIO: Se busca por 'status' en lugar de 'estado'
   const projectsQuery = query(
     projectsRef,
     where('teamId', '==', teamId),
@@ -19,10 +24,15 @@ export async function getProjectsByTeamWithTaskCount(teamId: string): Promise<Pr
   );
 
   const projectsSnapshot = await getDocs(projectsQuery);
-  const projects = projectsSnapshot.docs.map(doc => ({
-    id: doc.id,
-    ...doc.data()
-  })) as Project[];
+  const projects = projectsSnapshot.docs.map(doc => {
+    const data = doc.data();
+    return {
+      id: doc.id,
+      ...data,
+      // 👇 CAMBIO: Asegurarnos de que 'urls' sea un array aunque no exista en FB
+      urls: data.urls || [], 
+    } as Project;
+  });
 
   // Para cada proyecto, obtenemos el conteo de tareas
   const projectPromises = projects.map(async (project) => {
@@ -39,13 +49,11 @@ export async function getProjectsByTeamWithTaskCount(teamId: string): Promise<Pr
   return Promise.all(projectPromises);
 }
 
-/**
- * Crea un nuevo proyecto en Firestore.
- * @param projectData - Objeto con teamId, name y description.
- */
-// 👇 CAMBIO: El parámetro ahora espera 'name' y 'description'
-export async function createProject(projectData: { teamId: string; name: string; description: string; }) {
-  // 👇 CAMBIO: La validación ahora comprueba 'name'
+export async function createProject(projectData: {
+  teamId: string;
+  name: string;
+  description?: string; // Descripción es opcional en el tipo
+}) {
   if (!projectData.teamId || !projectData.name) {
     throw new Error("El ID del equipo y el nombre del proyecto son requeridos.");
   }
@@ -53,9 +61,58 @@ export async function createProject(projectData: { teamId: string; name: string;
   const projectsRef = collection(db, 'projects');
   return await addDoc(projectsRef, {
     ...projectData,
-    // 👇 CAMBIO: Se establece 'status' en lugar de 'estado'
+    description: projectData.description || "", // Guardar string vacío si es undefined
     status: 'active',
+    // 👇 CAMBIO: Inicializar el array de URLs
+    urls: [], 
     createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(), // Es buena práctica añadirlo también en la creación
+    updatedAt: serverTimestamp(),
+  });
+}
+export async function getProjectById(projectId: string): Promise<Project | null> {
+  if (!projectId) return null;
+
+  const projectRef = doc(db, 'projects', projectId);
+  const projectSnap = await getDoc(projectRef);
+
+  if (!projectSnap.exists()) {
+    console.error("No se encontró el proyecto con ID:", projectId);
+    return null;
+  }
+
+  const data = projectSnap.data();
+
+  // También obtenemos el conteo de tareas para que el objeto esté completo
+  const tasksRef = collection(db, 'tasks');
+  const tasksQuery = query(tasksRef, where('projectId', '==', projectId));
+  const tasksSnapshot = await getDocs(tasksQuery);
+
+  return {
+    id: projectSnap.id,
+    ...data,
+    urls: data.urls || [], // Asegurar que urls sea un array
+    taskCount: tasksSnapshot.size, // Añadir el conteo de tareas
+  } as Project;
+}
+export interface UpdateProjectData {
+  name?: string;
+  description?: string;
+  urls?: ProjectUrl[];
+}
+export async function updateProject(
+  projectId: string,
+  dataToUpdate: UpdateProjectData
+) {
+  if (!projectId) {
+    throw new Error("El ID del proyecto es requerido para actualizar.");
+  }
+
+  const projectRef = doc(db, 'projects', projectId);
+
+  // updateDoc ignora los campos 'undefined',
+  // así que podemos pasar el objeto de datos directamente.
+  return await updateDoc(projectRef, {
+    ...dataToUpdate,
+    updatedAt: serverTimestamp(),
   });
 }

@@ -110,12 +110,6 @@ export const useKanbanBoard = (projectId: string, teamId: string) => {
           } as Tag)
       );
 
-      // Logs de depuración (opcional)
-      // console.debug("[useKanbanBoard] projectTasks:", projectTasks);
-      // console.debug("[useKanbanBoard] members:", members);
-      // console.debug("[useKanbanBoard] tags:", allTags);
-
-      // Validación ligera sobre assignedTo / tags
       for (const t of projectTasks) {
         if (!t.assignedTo && (t as any).assignedToId) {
           console.warn(
@@ -142,7 +136,6 @@ export const useKanbanBoard = (projectId: string, teamId: string) => {
 
   useEffect(() => {
     fetchData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fetchData]);
 
   const filteredTasks = useMemo(() => {

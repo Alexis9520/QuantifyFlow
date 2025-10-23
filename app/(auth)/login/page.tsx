@@ -73,9 +73,8 @@ export default function LoginPage() {
         const errorData = await response.json().catch(() => ({ message: "Error desconocido en el servidor." }))
         throw new Error(errorData.message || "Fallo al crear la sesión en el servidor.")
       }
-
       toast.success("¡Inicio de sesión exitoso!", { id: toastId })
-      router.replace("/dashboard")
+     window.location.href = "/dashboard"
     } catch (err) {
       console.error("Login error:", err)
       let errorMessage = "Ocurrió un error inesperado."
@@ -117,7 +116,7 @@ export default function LoginPage() {
       }
 
       toast.success("¡Autenticado con GitHub!", { id: toastId })
-      router.replace("/dashboard")
+      router.push("/dashboard")
     } catch (err) {
       console.error("GitHub login error:", err)
       const message =

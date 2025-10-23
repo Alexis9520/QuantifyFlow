@@ -39,8 +39,14 @@ export interface Project {
   taskCount?: number
   createdAt: Date
   updatedAt: Date
+  urls: ProjectUrl[]
 }
 
+export interface ProjectUrl {
+  id: string
+  label: string 
+  link: string
+}
 
 
 export interface Tag {

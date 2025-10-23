@@ -59,7 +59,7 @@ export function Sidebar() {
       await fetch("/api/auth/logout", { method: "POST" })
       await signOut(auth)
       toast.success("Sesión cerrada.", { id: toastId })
-      router.replace("/login")
+      window.location.href = "/login"
     } catch (error) {
       console.error("Error al cerrar sesión:", error)
       toast.error("Error al cerrar sesión.", { id: toastId })
