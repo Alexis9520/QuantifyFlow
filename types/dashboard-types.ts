@@ -20,4 +20,5 @@ export interface AdminDashboardData {
   projects: Project[];
   tasks: Task[];
   recentActivity: ActivityLog[];
+  adminAssignedTasks: TaskWithDetails[];
 }

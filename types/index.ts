@@ -1,5 +1,6 @@
 import { Timestamp } from "firebase/firestore"
 
+export type TeamMemberRol = 'admin' | 'member';
 
 export interface User {
   uid: string
@@ -30,6 +31,11 @@ export interface TeamMember {
   joinedAt: Date
 }
 
+export interface TeamMemberWithDetails extends User { // Extiende User para incluir displayName, photoURL, etc.
+  rol: TeamMemberRol;
+  teamMemberDocId: string; // El ID del documento en teamMembers, necesario para updates
+}
+
 export interface Project {
   id: string
   teamId: string
@@ -58,13 +64,14 @@ export interface Tag {
 }
 
 export interface ActivityLog {
-  id: string
-  taskId: string
-  teamId: string
-  userId: string
-  action: string
-  details?: Record<string, any>
-  createdAt: Date
+  id: string;
+  teamId: string; // Sigue siendo obligatorio
+  userId: string; // Sigue siendo obligatorio
+  taskId?: string; // 👈 Hazlo opcional
+  projectId?: string; // 👈 Añade este campo opcional
+  action: string;
+  details?: Record<string, any>;
+  createdAt: Date;
 }
 
 export interface TimeLog {
@@ -85,11 +92,15 @@ export interface Task {
   description?: string
   status: "todo" | "in-progress" | "done"
   priority: "low" | "medium" | "high"
-  assignedToId?: string
+  assignedToIds?: string[]
   createdBy: string
   createdAt: Date
   updatedAt: Date
   dueDate?: Date | Timestamp;
+  //new archivation fields
+  isArchived: boolean;
+  archivedAt?: Timestamp;
+  archivedBy?: string;
 }
 
 export interface Subtask {
@@ -100,7 +111,8 @@ export interface Subtask {
   createdAt: Date
 }
 export interface TaskWithDetails extends Task {
-  assignedTo?: User;
+  assignedTo?: User[];
   subtasks: Subtask[];
   tags: Tag[];
+  archivedByUser?: User;
 }

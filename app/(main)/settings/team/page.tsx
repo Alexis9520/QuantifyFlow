@@ -12,7 +12,10 @@ import {
   Settings2,
   Tags,
   ArrowRight,
+  Save,
+  UsersIcon,
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 
 import { useAuth } from '@/context/AuthContext';
@@ -23,9 +26,20 @@ import {
   generateInvitationCode,
   createTag,
   deleteTag,
+  updateTeamMemberRole, // 👈 Importar nueva función
+  TeamMemberWithDetails, // 👈 Importar tipo
+  TeamMemberRol,        // 👈 Importar tipo
   Tag,
 } from '@/services/teamService';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import Spinner from '@/components/ui/spinner';
+import { Button } from '@/components/ui/button';
 
 // --- SUBCOMPONENTE: TeamCodeGenerator (Mejorado) ---
 const TeamCodeGenerator: React.FC<{ teamId: string }> = ({ teamId }) => {
@@ -155,7 +169,10 @@ export default function TeamSettingsPage() {
   const {
     team,
     tags,
+    members, 
     isLoading: isTeamDataLoading,
+    error: teamDataError, 
+    refetch: refetchTeamData, 
   } = useAdminTeamData(activeTeamId || '');
 
   const [teamName, setTeamName] = useState('');
@@ -165,6 +182,9 @@ export default function TeamSettingsPage() {
   const [isCreatingTag, setIsCreatingTag] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [currentTags, setCurrentTags] = useState<Tag[]>([]);
+  const [updatingMemberId, setUpdatingMemberId] = useState<string | null>(null);
+
+  const [pendingRoles, setPendingRoles] = useState<Record<string, TeamMemberRol>>({});
 
   useEffect(() => {
     if (team) {
@@ -177,6 +197,10 @@ export default function TeamSettingsPage() {
       setCurrentTags(tags.sort((a, b) => a.tagName.localeCompare(b.tagName)));
     }
   }, [tags]);
+
+  useEffect(() => {
+    setPendingRoles({}); // Resetea los roles pendientes cuando los datos de miembros se recargan
+  }, [members]);
 
   if (!authUser) {
     return (
@@ -195,7 +219,9 @@ export default function TeamSettingsPage() {
       </div>
     );
   }
-
+  if (teamDataError) { // 👈 Mostrar error si la carga falló
+      return <div className="p-8 text-center text-destructive">Error al cargar datos del equipo: {teamDataError.message}</div>;
+  }
   if (!isAdmin || !activeTeamId || !team) {
     return (
       <div className="p-8 flex flex-col items-center justify-center text-destructive">
@@ -249,6 +275,29 @@ export default function TeamSettingsPage() {
         console.error('Error al eliminar la etiqueta:', error);
       }
     }
+  };
+  const handleRoleChange = async (memberDocId: string, newRole: TeamMemberRol) => {
+    if (updatingMemberId) return;
+    setUpdatingMemberId(memberDocId);
+    const toastId = toast.loading(`Actualizando rol...`);
+
+    try {
+      await updateTeamMemberRole(memberDocId, newRole);
+      toast.success(`Rol actualizado correctamente.`, { id: toastId });
+      refetchTeamData(); // Refresca y limpiará pendingRoles vía useEffect
+    } catch (error: any) {
+      console.error("Error al actualizar rol:", error);
+      toast.error(`Error: ${error.message || 'No se pudo actualizar el rol.'}`, { id: toastId });
+      // No revertimos pendingRoles aquí, el refetch lo limpiará o el usuario puede cambiarlo de nuevo
+    } finally {
+      setUpdatingMemberId(null);
+    }
+  };
+  const handlePendingRoleChange = (memberDocId: string, newRole: TeamMemberRol) => {
+    setPendingRoles(prev => ({
+      ...prev,
+      [memberDocId]: newRole,
+    }));
   };
 
   return (
@@ -323,7 +372,96 @@ export default function TeamSettingsPage() {
             </div>
           </form>
         </section>
+        {/* SECCIÓN 4: Gestión de Miembros */}
+        <section className="bg-card text-card-foreground border rounded-lg shadow-sm">
+          <h2 className="text-xl font-semibold p-6 border-b flex items-center gap-2">
+            <UsersIcon className="w-5 h-5" />
+            Gestión de Miembros ({members.length})
+          </h2>
 
+          <div className="divide-y divide-border">
+            {members.map((member) => {
+              const isOwner = team.ownerUid === member.uid;
+              const isUpdatingThisMember = updatingMemberId === member.teamMemberDocId;
+
+              // --- 👇 CAMBIO 4: Leer el rol del estado centralizado o del miembro ---
+              const currentSelectedRole = pendingRoles[member.teamMemberDocId] ?? member.rol;
+              // Determina si hay un cambio pendiente para este miembro
+              const hasPendingChange = pendingRoles[member.teamMemberDocId] !== undefined && pendingRoles[member.teamMemberDocId] !== member.rol;
+
+              // ❌ ELIMINAR ESTA LÍNEA: const [selectedRole, setSelectedRole] = useState<TeamMemberRole>(member.role);
+
+              return (
+                <div key={member.teamMemberDocId} className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 md:p-6">
+                  {/* Info del miembro (sin cambios) */}
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    {/* ... (Avatar, Nombre, Email, Badge Owner) ... */}
+                    {/* Avatar */}
+                    <div className="flex-shrink-0 h-10 w-10 rounded-full bg-muted flex items-center justify-center ring-1 ring-border">
+                      {member.photoURL ? (
+                        <img src={member.photoURL} alt={member.displayName || 'Avatar'} className="h-10 w-10 rounded-full object-cover" />
+                      ) : (
+                        <span className="text-sm font-semibold text-muted-foreground">
+                          {(member.displayName || "").split(" ").map(n=>n[0]).slice(0,2).join("").toUpperCase() || '?'}
+                        </span>
+                      )}
+                    </div>
+                    {/* Nombre y Email */}
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-foreground truncate flex items-center">
+                        {member.displayName || 'Usuario sin nombre'}
+                        {isOwner && (
+                           <span className="ml-2 text-xs font-semibold bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300 px-1.5 py-0.5 rounded">
+                              Owner
+                           </span>
+                        )}
+                      </p>
+                      <p className="text-xs text-muted-foreground truncate">{member.email || 'Sin email'}</p>
+                    </div>
+                  </div>
+
+
+                  {/* Selector de Rol y Botón Guardar */}
+                  <div className="flex items-center gap-2 w-full sm:w-auto">
+                    <Select
+                      // --- 👇 CAMBIO 5: Usar estado centralizado y handler ---
+                      value={currentSelectedRole}
+                      onValueChange={(value) => handlePendingRoleChange(member.teamMemberDocId, value as TeamMemberRol)}
+                      disabled={isOwner || isUpdatingThisMember}
+                    >
+                      <SelectTrigger className="w-full sm:w-[120px]" disabled={isOwner}>
+                        <SelectValue placeholder="Seleccionar rol" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="admin">Admin</SelectItem>
+                        <SelectItem value="member">Member</SelectItem>
+                      </SelectContent>
+                    </Select>
+
+                    {/* --- 👇 CAMBIO 6: Mostrar botón si hay cambio pendiente --- */}
+                    {!isOwner && hasPendingChange && (
+                      <Button
+                        size="sm"
+                        // Llama a handleRoleChange con el rol PENDIENTE
+                        onClick={() => handleRoleChange(member.teamMemberDocId, currentSelectedRole)}
+                        disabled={isUpdatingThisMember}
+                      >
+                        {isUpdatingThisMember ? (
+                          <Spinner size={16} label="" className="mr-1" />
+                        ) : (
+                          <Save className="h-4 w-4 sm:mr-1" />
+                        )}
+                        <span className="hidden sm:inline">Guardar</span>
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          {members.length === 0 && <p>No hay miebros que mostrar</p>}
+        </section>
+        {/* --- Fin Sección Miembros --- */}      
         {/* SECCIÓN 3: Gestión de Etiquetas (Tags) */}
         <section className="bg-card text-card-foreground border rounded-lg shadow-sm">
           <h2 className="text-xl font-semibold p-6 border-b flex items-center gap-2">

@@ -44,6 +44,7 @@ export function useProjects(teamId?: string) {
   }, [allProjects, searchTerm]);
 
   return { 
+    allProjects,
     projects: filteredProjects, 
     isLoading, 
     error, 

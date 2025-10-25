@@ -4,7 +4,7 @@ import React from "react"
 import { useTheme } from "next-themes"
 import { StrictModeDroppable } from "./StrictModeDroppable"
 import TaskCard from "./TaskCard"
-import type { TaskWithDetails } from "@/types"
+import type { TaskWithDetails, User } from "@/types"
 
 interface KanbanColumnProps {
   column: {
@@ -13,10 +13,22 @@ interface KanbanColumnProps {
     tasks: TaskWithDetails[]
   }
   onTaskClick: (task: TaskWithDetails) => void
-  onRefreshBoard: () => void
+  userRole: "admin" | "member" | null
+  currentUserId: string
+  // Props de subtareas
+  onSubtaskToggle: (taskId: string, subtaskId: string, newStatus: boolean) => void;
+  updatingSubtaskId: string | null;
 }
 
-export default function KanbanColumn({ column, onTaskClick, onRefreshBoard }: KanbanColumnProps) {
+export default function KanbanColumn({
+  column,
+  onTaskClick,
+  userRole,
+  currentUserId,
+  // --- CAMBIO 2: Recibir props ---
+  onSubtaskToggle,
+  updatingSubtaskId,
+}: KanbanColumnProps) {
   const { resolvedTheme } = useTheme()
   const isLight = resolvedTheme === "light"
 
@@ -59,19 +71,30 @@ export default function KanbanColumn({ column, onTaskClick, onRefreshBoard }: Ka
                   ? "border border-black bg-black/5"
                   : "border border-black bg-transparent"
                 : snapshot.isDraggingOver
-                ? "bg-white/10"
-                : "bg-white/5",
+                  ? "bg-white/10"
+                  : "bg-white/5",
             ].join(" ")}
           >
-            {column.tasks.map((task, index) => (
-              <TaskCard
-                key={task.id}
-                task={task}
-                index={index}
-                onClick={() => onTaskClick(task)}
-                onUpdate={onRefreshBoard}
-              />
-            ))}
+            {column.tasks.map((task, index) => {
+              const isAssignedToMe =
+                task.assignedToIds?.includes(currentUserId) ?? false
+              const canDrag = userRole === "admin" || isAssignedToMe
+              const canEdit = userRole === "admin" 
+              return (
+                <TaskCard
+                  key={task.id}
+                  task={task}
+                  index={index}
+                  onClick={() => onTaskClick(task)}
+                  isDraggable={canDrag}
+                  isEditable={canEdit}
+                  
+                  // --- CAMBIO 3: Pasar las nuevas props ---
+                  onSubtaskToggle={onSubtaskToggle}
+                  updatingSubtaskId={updatingSubtaskId}
+                />
+              )
+            })}
             {provided.placeholder}
           </div>
         )}

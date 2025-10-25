@@ -10,9 +10,10 @@ import {
   getProjectTasks,
   updateTaskStatus,
   getTeamMembersForFilter,
+  updateSubtaskCompletion,
 } from "@/services/kanbanService";
 
-import type { TaskWithDetails, User, Tag } from "@/types";
+import type { TaskWithDetails, User, Tag, Subtask } from "@/types";
 import { useAuth } from "@/context/AuthContext";
 
 type TaskStatus = "todo" | "in-progress" | "done";
@@ -69,6 +70,8 @@ export const useKanbanBoard = (projectId: string, teamId: string) => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const [updatingSubtaskId, setUpdatingSubtaskId] = useState<string | null>(null);
+
   // Filtros
   const [teamMembers, setTeamMembers] = useState<User[]>([]);
   const [availableTags, setAvailableTags] = useState<Tag[]>([]);
@@ -111,13 +114,31 @@ export const useKanbanBoard = (projectId: string, teamId: string) => {
       );
 
       for (const t of projectTasks) {
-        if (!t.assignedTo && (t as any).assignedToId) {
+        // Comprobar si 'assignedToIds' (array de strings) existe pero
+        // 'assignedTo' (array de Users) no se populó correctamente.
+        if (
+          t.assignedToIds &&
+          t.assignedToIds.length > 0 &&
+          (!t.assignedTo || t.assignedTo.length === 0)
+        ) {
           console.warn(
-            `[useKanbanBoard] Tarea ${t.id} tiene assignedToId pero falta el objeto assignedTo.`
+            `[useKanbanBoard] Tarea ${t.id} tiene 'assignedToIds' pero falta el array 'assignedTo' (usuarios populados).`
           );
         }
+
+        // Asegurar que los arrays existan para evitar errores en filtros/render
         if (!Array.isArray(t.tags)) {
           (t as any).tags = [];
+        }
+
+        // Nueva comprobación para 'subtasks'
+        if (!Array.isArray(t.subtasks)) {
+          (t as any).subtasks = [];
+        }
+
+        // Opcional: asegurar que assignedToIds exista si assignedTo existe
+        if (!Array.isArray(t.assignedToIds)) {
+          (t as any).assignedToIds = [];
         }
       }
 
@@ -147,8 +168,12 @@ export const useKanbanBoard = (projectId: string, teamId: string) => {
       const title = (task.title || "").toLowerCase();
       const matchesSearch = q ? title.includes(q) : true;
 
-      const userId = (task as any).assignedToId || task.assignedTo?.uid || "";
-      const matchesUser = hasUserFilter ? assignedUserFilter.includes(userId) : true;
+      // --- MODIFICACIÓN INICIO: Lógica de filtro para 'assignedToIds' ---
+      // 'task.assignedToIds' es ahora un array de strings (IDs de usuario)
+      const taskUserIds = task.assignedToIds || [];
+      const matchesUser = hasUserFilter
+        ? assignedUserFilter.some((filterId) => taskUserIds.includes(filterId))
+        : true;
 
       const taskTags = Array.isArray(task.tags) ? task.tags : [];
       const matchesTags = hasTagFilter
@@ -178,7 +203,7 @@ export const useKanbanBoard = (projectId: string, teamId: string) => {
     return base;
   }, [filteredTasks]);
 
-  const handleDragEnd = useCallback(
+  const handleDragEnd = useCallback(  
     (result: DropResult) => {
       const { destination, source, draggableId } = result;
       if (!destination || !user) return;
@@ -206,6 +231,76 @@ export const useKanbanBoard = (projectId: string, teamId: string) => {
     [teamId, user]
   );
 
+  const handleSubtaskToggle = useCallback(
+    (taskId: string, subtaskId: string, newCompleted: boolean) => {
+      if (updatingSubtaskId) return; // Prevenir clics múltiples
+      setUpdatingSubtaskId(subtaskId);
+
+      const originalTasks = tasks;
+      let didTaskStatusChange = false;
+
+      // 1. Lógica Optimista
+      const newTasks = tasks.map((task) => {
+        if (task.id !== taskId) return task;
+
+        const originalStatus = task.status;
+        const newSubtasks = task.subtasks.map((sub) =>
+          sub.id === subtaskId ? { ...sub, completed: newCompleted } : sub
+        );
+
+        // Replicamos la lógica del servidor (todo/in-progress/done)
+        const totalSubtasks = newSubtasks.length;
+        const completedSubtasks = newSubtasks.filter(s => s.completed).length;
+
+        let determinedStatus: TaskStatus;
+
+        if (totalSubtasks === 0 || completedSubtasks === 0) {
+          determinedStatus = 'todo';
+        } else if (completedSubtasks === totalSubtasks) {
+          determinedStatus = 'done';
+        } else {
+          determinedStatus = 'in-progress';
+        }
+
+        let newStatus = originalStatus;
+        if (originalStatus !== determinedStatus) {
+          newStatus = determinedStatus;
+          didTaskStatusChange = true;
+        }
+
+        return { ...task, subtasks: newSubtasks, status: newStatus };
+      });
+
+      setTasks(newTasks); // Actualiza la UI al instante
+
+      // 2. Llamada a Firebase
+      if (!user) {
+        console.error("No hay usuario, revirtiendo.");
+        setTasks(originalTasks);
+        setUpdatingSubtaskId(null);
+        return;
+      }
+
+      updateSubtaskCompletion(subtaskId, taskId, newCompleted, user.uid, teamId)
+        .then(() => {
+          // 3. Sincronización silenciosa (solo si es necesario)
+          if (didTaskStatusChange) {
+            // El estado de la TAREA cambió (ej. a 'done'),
+            // así que refrescamos para confirmar.
+            fetchData(); 
+          }
+        })
+        .catch((err) => {
+          console.error("Error al actualizar la subtarea, revirtiendo:", err);
+          setTasks(originalTasks);
+        })
+        .finally(() => {
+          setUpdatingSubtaskId(null);
+        });
+    },
+    [tasks, teamId, user, updatingSubtaskId, fetchData] // 👈 Añadir dependencias
+  );
+
   const clearFilters = useCallback(() => {
     setSearchQuery("");
     setAssignedUserFilter([]);
@@ -221,7 +316,8 @@ export const useKanbanBoard = (projectId: string, teamId: string) => {
     // acciones
     handleDragEnd,
     refreshTasks: fetchData,
-
+    handleSubtaskToggle,
+    updatingSubtaskId,
     // filtros
     teamMembers,
     availableTags,

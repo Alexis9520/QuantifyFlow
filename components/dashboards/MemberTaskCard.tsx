@@ -99,15 +99,31 @@ export default function MemberTaskCard({ task, usersCache, onClick }: MemberTask
         </div>
       )}
 
-      {/* Usuario Asignado */}
-      {details.assignedTo && (
-        <div className="flex items-center gap-2 pt-2 border-t border-gray-200 dark:border-gray-700">
-          <img
-            src={details.assignedTo.photoURL || 'https://placehold.co/32x32'}
-            alt={details.assignedTo.displayName}
-            className="w-6 h-6 rounded-full"
-          />
-          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{details.assignedTo.displayName}</span>
+      {/* 👇 CAMBIO: Renderizar un "avatar stack" para múltiples asignados */}
+      {details.assignedTo && details.assignedTo.length > 0 && (
+        <div className="flex items-center gap-3 pt-3 border-t border-gray-200 dark:border-gray-700">
+          <Users size={16} className="text-gray-400 flex-shrink-0" />
+          <div className="flex -space-x-2">
+            {/* Mostramos los primeros 3 avatares */}
+            {details.assignedTo.slice(0, 3).map((user) => (
+              <img
+                key={user.uid}
+                src={user.photoURL || 'https://placehold.co/32x32'}
+                alt={user.displayName || 'usuario'}
+                title={user.displayName || 'usuario'} // Tooltip con el nombre
+                className="w-6 h-6 rounded-full ring-2 ring-white dark:ring-gray-800"
+              />
+            ))}
+            {/* Si hay más de 3, mostramos un indicador "+N" */}
+            {details.assignedTo.length > 3 && (
+              <div 
+                title={`${details.assignedTo.length - 3} más asignados`}
+                className="flex h-6 w-6 items-center justify-center rounded-full bg-gray-200 dark:bg-gray-600 text-xs font-medium text-gray-700 dark:text-gray-200 ring-2 ring-white dark:ring-gray-800"
+              >
+                +{details.assignedTo.length - 3}
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>

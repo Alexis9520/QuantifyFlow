@@ -12,6 +12,12 @@ import {
 import { db } from '@/lib/firebase';
 import { Project, ProjectUrl } from '@/types'; // Asegúrate de que este tipo coincida con tu nueva estructura
 
+export interface CreateProjectData {
+  teamId: string;
+  name: string;
+  description?: string;
+  urls?: ProjectUrl[]; // 👈 CAMBIO: Añadido el campo de URLs
+}
 
 export async function getProjectsByTeamWithTaskCount(teamId: string): Promise<Project[]> {
   if (!teamId) return [];
@@ -30,7 +36,7 @@ export async function getProjectsByTeamWithTaskCount(teamId: string): Promise<Pr
       id: doc.id,
       ...data,
       // 👇 CAMBIO: Asegurarnos de que 'urls' sea un array aunque no exista en FB
-      urls: data.urls || [], 
+      urls: data.urls || [],
     } as Project;
   });
 
@@ -49,11 +55,7 @@ export async function getProjectsByTeamWithTaskCount(teamId: string): Promise<Pr
   return Promise.all(projectPromises);
 }
 
-export async function createProject(projectData: {
-  teamId: string;
-  name: string;
-  description?: string; // Descripción es opcional en el tipo
-}) {
+export async function createProject(projectData: CreateProjectData) { // 👈 CAMBIO: Usando la nueva interfaz
   if (!projectData.teamId || !projectData.name) {
     throw new Error("El ID del equipo y el nombre del proyecto son requeridos.");
   }
@@ -63,12 +65,13 @@ export async function createProject(projectData: {
     ...projectData,
     description: projectData.description || "", // Guardar string vacío si es undefined
     status: 'active',
-    // 👇 CAMBIO: Inicializar el array de URLs
-    urls: [], 
+    // 👇 CAMBIO: Usar las URLs del input, o un array vacío si no se proporcionan
+    urls: projectData.urls || [],
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
 }
+
 export async function getProjectById(projectId: string): Promise<Project | null> {
   if (!projectId) return null;
 

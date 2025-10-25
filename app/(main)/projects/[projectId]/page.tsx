@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState } from "react";
+
+import React, { useState, useEffect } from "react";
 import { useTheme } from "next-themes";
 import { DragDropContext, DropResult } from "react-beautiful-dnd";
 
@@ -14,6 +15,8 @@ import TaskModal from "@/components/projects/kanban/TaskModal";
 import type { TaskWithDetails } from "@/types";
 import KanbanColumnsWrapper from "@/components/projects/kanban/KanbanColumnsWrapper";
 import Spinner from "@/components/ui/spinner";
+import { toast } from "sonner";
+import { archiveAllDoneTasks } from "@/services/kanbanService";
 
 interface ProjectPageProps {
   params: { projectId: string };
@@ -42,11 +45,26 @@ export default function ProjectPage({ params }: ProjectPageProps) {
     tagFilter,
     setTagFilter,
     refreshTasks,
+    handleSubtaskToggle,
+    updatingSubtaskId,
   } = useKanbanBoard(projectId, teamId);
-
+  const [isArchivingAll, setIsArchivingAll] = useState(false);
   // Estado modal (crear/editar)
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<TaskWithDetails | null>(null);
+  const [initialFilterSet, setInitialFilterSet] = useState(false);
+
+  useEffect(() => {
+    // Espera a que el rol y el usuario estén cargados
+    if (userRole && user?.uid && !isTeamLoading && !initialFilterSet) {
+      if (userRole === 'member') {
+        // Si es member, aplica el filtro de "mis tareas" por defecto
+        setAssignedUserFilter([user.uid]);
+      }
+      // Marcamos como aplicado (para admin o member)
+      setInitialFilterSet(true);
+    }
+  }, [userRole, user?.uid, isTeamLoading, initialFilterSet, setAssignedUserFilter]);
 
   const openCreateModal = () => {
     setSelectedTask(null);
@@ -68,7 +86,35 @@ export default function ProjectPage({ params }: ProjectPageProps) {
     closeModal();
   };
 
-  const isLoading = isBoardLoading || isTeamLoading;
+  const handleArchiveAllDone = async () => {
+    if (!user || userRole !== 'admin' || isArchivingAll) return;
+
+    // Preguntar confirmación
+    if (!window.confirm("¿Estás seguro de que deseas archivar todas las tareas completadas en este proyecto?")) {
+      return;
+    }
+
+    setIsArchivingAll(true);
+    const toastId = toast.loading("Archivando tareas completadas...");
+
+    try {
+      const result = await archiveAllDoneTasks(projectId, user.uid, teamId);
+
+      if (result.archivedCount > 0) {
+        toast.success(`${result.archivedCount} tarea(s) archivada(s). Refrescando tablero...`, { id: toastId });
+        refreshTasks(); // Actualiza la UI del tablero
+      } else {
+        toast.success("No había tareas completadas para archivar.", { id: toastId });
+      }
+    } catch (err) {
+      console.error("Error al archivar tareas completadas:", err);
+      toast.error("Error al archivar las tareas.", { id: toastId });
+    } finally {
+      setIsArchivingAll(false);
+    }
+  };
+
+  const isLoading = isBoardLoading || isTeamLoading || !user;
 
   // Errores y estados sin equipo
   if (!teamId && !isTeamLoading) {
@@ -106,6 +152,10 @@ export default function ProjectPage({ params }: ProjectPageProps) {
           selectedTags={tagFilter}
           onTagFilterChange={setTagFilter}
           onNewTaskClick={openCreateModal}
+          userRole={userRole}
+          currentUserId={user?.uid}
+          onArchiveAllDone={handleArchiveAllDone}
+          isArchivingAll={isArchivingAll}
         />
       </div>
 
@@ -122,7 +172,10 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                 key={column.id}
                 column={column}
                 onTaskClick={openEditModal}
-                onRefreshBoard={refreshTasks}
+                onSubtaskToggle={handleSubtaskToggle}
+                updatingSubtaskId={updatingSubtaskId}
+                userRole={userRole}
+                currentUserId={user!.uid}
               />
             ))}
           </KanbanColumnsWrapper>

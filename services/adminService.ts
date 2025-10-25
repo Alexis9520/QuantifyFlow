@@ -11,14 +11,13 @@ import {
     TeamMember
 } from '@/types/index';
 import { AdminDashboardData, TeamMemberWithDetails } from '@/types/dashboard-types';
+import { getCurrentUserTasks } from './kanbanService';
 
-/**
- * Obtiene un conjunto completo de datos para el dashboard de un administrador de equipo.
- *
- * @param teamId - El ID del equipo para el que se recopilarán los datos.
- * @returns Una promesa que se resuelve con un objeto AdminDashboardData o null si el equipo no se encuentra.
- */
-export const getAdminDashboardData = async (teamId: string): Promise<AdminDashboardData | null> => {
+
+export const getAdminDashboardData = async (
+    teamId: string,
+    adminUserId: string
+): Promise<AdminDashboardData | null> => {
     console.log(`[AdminService] Iniciando la obtención de datos para el equipo: ${teamId}`);
 
     // 1. Validar que el equipo existe
@@ -37,34 +36,41 @@ export const getAdminDashboardData = async (teamId: string): Promise<AdminDashbo
         const [
             members,
             projects,
-            tasks,
-            recentActivity
+            tasks, // Tareas básicas de todo el equipo
+            recentActivity,
+            adminAssignedTasks
         ] = await Promise.all([
             // --- Obtener Miembros del Equipo con sus Detalles de Usuario ---
             (async (): Promise<TeamMemberWithDetails[]> => {
                 const membersQuery = query(collection(db, 'teamMembers'), where('teamId', '==', teamId));
                 const membersSnap = await getDocs(membersQuery);
-                const memberDocs = membersSnap.docs.map(d => d.data() as TeamMember);
+                const memberDocsData = membersSnap.docs.map(d => ({ 
+                   id: d.id, // ID del documento teamMembers
+                   ...(d.data() as Omit<TeamMember, 'id'>) 
+                }));
 
-                console.log(`[AdminService] Obtenidos ${memberDocs.length} registros de miembros.`);
-                if (memberDocs.length === 0) return [];
+                console.log(`[AdminService] Obtenidos ${memberDocsData.length} registros de miembros.`);
+                if (memberDocsData.length === 0) return [];
 
-                const userIds = memberDocs.map(m => m.userId);
-                const usersQuery = query(collection(db, 'users'), where('uid', 'in', userIds));
-                const usersSnap = await getDocs(usersQuery);
-                const usersData = usersSnap.docs.map(d => ({ uid: d.id, ...d.data() } as User));
+                const userIds = memberDocsData.map(m => m.userId);
+                 // Asumiendo que userId es el ID del documento en 'users'
+                const usersQuery = query(collection(db, 'users'), where('__name__', 'in', userIds)); 
+                const usersSnap = await getDocs(usersQuery);
+                const usersDataMap: Record<string, User> = {};
+                 usersSnap.forEach(d => {
+                    usersDataMap[d.id] = { uid: d.id, ...d.data() } as User;
+                 });
 
                 // Unir datos de usuario con datos de miembro (rol, fecha de unión)
-                const membersWithDetails: TeamMemberWithDetails[] = usersData.map(user => {
-                    const memberInfo = memberDocs.find(m => m.userId === user.uid);
-
-                    // ✨ Lógica más explícita y segura
-                    return {
-                        ...user,
-                        role: memberInfo ? memberInfo.rol : 'member', // Provee un fallback explícito
-                        joinedAt: memberInfo ? memberInfo.joinedAt : undefined, // Asigna undefined si no se encuentra
-                    };
-                });
+                const membersWithDetails: TeamMemberWithDetails[] = memberDocsData.map(memberDoc => {
+                    const userDetail = usersDataMap[memberDoc.userId];
+                    return {
+                        ...(userDetail || { uid: memberDoc.userId, displayName: 'Usuario Desconocido', email: '', preferences: { theme:'light', colorPalette:'default'}, createdAt: new Date() }), // Fallback más completo
+                        role: memberDoc.rol, 
+                          teamMemberDocId: memberDoc.id, 
+                        joinedAt: memberDoc ? memberDoc.joinedAt : undefined, // Si tienes joinedAt
+                    };
+                });
                 console.log(`[AdminService] ✅ Obtenidos detalles completos de ${membersWithDetails.length} miembros.`);
                 return membersWithDetails;
             })(),
@@ -102,7 +108,12 @@ export const getAdminDashboardData = async (teamId: string): Promise<AdminDashbo
 
                 console.log(`[AdminService] ✅ Obtenidos ${activityData.length} registros de actividad reciente.`);
                 return activityData;
-            })()
+            })(),
+
+            getCurrentUserTasks(adminUserId).then(tasks => {
+                console.log(`[AdminService] ✅ Obtenidas ${tasks.length} tareas asignadas al admin.`);
+                return tasks;
+            }),
         ]);
 
         // 3. Ensamblar el objeto final
@@ -110,8 +121,9 @@ export const getAdminDashboardData = async (teamId: string): Promise<AdminDashbo
             team: teamData,
             members,
             projects,
-            tasks,
-            recentActivity
+            tasks, // Tareas básicas de todo el equipo (activas)
+            recentActivity,
+            adminAssignedTasks
         };
 
         console.log(`[AdminService] 🚀 Ensamblaje de datos del dashboard de admin completado.`, dashboardData);

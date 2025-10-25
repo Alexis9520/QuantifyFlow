@@ -4,11 +4,12 @@ import { AdminDashboard } from '@/components/dashboards/admin-dashboard';
 import { MemberDashboard } from '@/components/dashboards/member-dashboard';
 import { getUserRoleAndTeam } from './actions';
 import { getUserDashboardData } from '@/services/memberService';
-
+import { MemberDashboardWrapper } from '@/components/dashboards/member-dashboard-wrapper';
 import { getCurrentUser } from '@/lib/server-auth';
 import { redirect } from 'next/navigation';
 import { getAdminDashboardData } from '@/services/adminService';
 import Link from 'next/link';
+import { AdminDashboardWrapper } from '@/components/dashboards/admin-dashboard-wrapper';
 
 export default async function DashboardPage() {
   const user = await getCurrentUser();
@@ -43,7 +44,7 @@ export default async function DashboardPage() {
 
   // Caso: El usuario es 'admin'.
   if (membership.role === 'admin') {
-    const adminData = await getAdminDashboardData(membership.teamId);
+    const adminData = await getAdminDashboardData(membership.teamId, user.uid);
     
     // ✨ CAMBIO IMPORTANTE: Validar si los datos del admin se cargaron correctamente.
     if (!adminData) {
@@ -55,15 +56,27 @@ export default async function DashboardPage() {
       );
     }
 
-    return <AdminDashboard userName={user.displayName ?? null} adminData={adminData} />;
+    return (
+      <AdminDashboardWrapper 
+         userName={user.displayName ?? null} 
+         initialAdminData={adminData} 
+         currentUserId={user.uid} // 👈 Pasa el ID del admin
+      />
+    );
   }
   
   // Caso: El usuario es 'member'.
   if (membership.role === 'member') {
     const memberData = await getUserDashboardData(user.uid);
-    return <MemberDashboard userName={user.displayName ?? null} memberData={memberData} />;
+    
+    // 👇 CAMBIO: Usa el Wrapper y pásale los datos
+    return (
+      <MemberDashboardWrapper
+        userName={user.displayName ?? null}
+        memberData={memberData} 
+      />
+    );
   }
-
   // Caso fallback
   return <div>Rol no reconocido.</div>;
 }

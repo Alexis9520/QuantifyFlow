@@ -18,6 +18,7 @@ import {
   Shield,
   Calendar,
 } from "lucide-react";
+import { DashboardTaskCard } from "./DashboardTaskCard";
 
 // Utils fecha (robusta)
 const toDateSafe = (value: unknown): Date | null => {
@@ -27,7 +28,7 @@ const toDateSafe = (value: unknown): Date | null => {
     try {
       const d = (value as Timestamp).toDate();
       return isNaN(d.getTime()) ? null : d;
-    } catch {}
+    } catch { }
   }
   if (typeof value === "object" && value !== null && "seconds" in (value as any)) {
     const s = Number((value as any).seconds);
@@ -315,10 +316,26 @@ const ActivityItem = ({ log, isLight }: { log: ActivityLog; isLight: boolean }) 
 // Props
 interface AdminDashboardProps {
   userName: string | null;
-  adminData: AdminDashboardData | null;
+  adminData: AdminDashboardData | null; // Sigue recibiendo el tipo completo
+  projectsName: Project[]; 
+  isLoadingProjects: boolean;
+  onSubtaskToggle: (taskId: string, subId: string, newStatus: boolean) => void;
+  updatingSubtaskId: string | null;
+  onArchiveTask: (taskId: string) => void;
+  archivingTaskId: string | null;
+  
 }
 
-export function AdminDashboard({ userName, adminData }: AdminDashboardProps) {
+export function AdminDashboard({
+  userName,
+  adminData,
+  onSubtaskToggle,
+  updatingSubtaskId,
+  onArchiveTask,
+  archivingTaskId,
+  projectsName, // 👈 Recibe los proyectos
+  isLoadingProjects,
+}: AdminDashboardProps) {
   const { resolvedTheme } = useTheme();
   const isLight = resolvedTheme === "light";
 
@@ -337,11 +354,19 @@ export function AdminDashboard({ userName, adminData }: AdminDashboardProps) {
     );
   }
 
-  const { team, members, projects, tasks, recentActivity } = adminData;
+  const { team, members, projects, tasks, recentActivity, adminAssignedTasks } = adminData;
   const tasksToDo = tasks.filter((t: any) => t.status === "todo").length;
   const tasksInProgress = tasks.filter((t: any) => t.status === "in-progress").length;
   const tasksDone = tasks.filter((t: any) => t.status === "done" || t.status === "completed").length;
   const activeProjects = projects.filter((p: any) => p.status === "active").length;
+  const adminTasksSorted = React.useMemo(() => {
+        return [...adminAssignedTasks].sort((a, b) => {
+            const ad = toDateSafe(a.dueDate)?.getTime() ?? Number.POSITIVE_INFINITY;
+            const bd = toDateSafe(b.dueDate)?.getTime() ?? Number.POSITIVE_INFINITY;
+            if (ad !== bd) return ad - bd;
+            return a.title.localeCompare(b.title);
+        });
+    }, [adminAssignedTasks]);
 
   return (
     <div className={cx("w-full", isLight && "bg-white text-black")}>
@@ -366,37 +391,76 @@ export function AdminDashboard({ userName, adminData }: AdminDashboardProps) {
         </section>
 
         <main className="grid grid-cols-1 gap-8 lg:grid-cols-3">
-          {/* Proyectos */}
-          <section className="lg:col-span-2">
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className={cx("text-xl font-extrabold tracking-tight", isLight ? "text-black" : "")}>
-                Proyectos del equipo
-              </h2>
-              <div className={cx("text-xs", isLight ? "text-black/70" : "text-muted-foreground")}>
-                Tareas completadas: <span className={cx("font-semibold", isLight ? "text-black" : "text-foreground")}>{tasksDone}</span>
+          {/* Columna Principal (Proyectos y Tareas del Admin) */}
+          <div className="lg:col-span-2 space-y-8"> {/* Envuelve en un div para layout */}
+            {/* Proyectos */}
+            <section className="lg:col-span-2">
+              <div className="mb-4 flex items-center justify-between">
+                <h2 className={cx("text-xl font-extrabold tracking-tight", isLight ? "text-black" : "")}>
+                  Proyectos del equipo
+                </h2>
+                <div className={cx("text-xs", isLight ? "text-black/70" : "text-muted-foreground")}>
+                  Tareas completadas: <span className={cx("font-semibold", isLight ? "text-black" : "text-foreground")}>{tasksDone}</span>
+                </div>
               </div>
-            </div>
 
-            {projects.length > 0 ? (
-              <div className="grid grid-cols-1 gap-5 md:grid-cols-2 2xl:grid-cols-3">
-                {projects.map((project) => (
-                  <ProjectCard key={(project as any).id} project={project} tasks={tasks as any} isLight={isLight} />
-                ))}
+              {projects.length > 0 ? (
+                <div className="grid grid-cols-1 gap-5 md:grid-cols-2 2xl:grid-cols-3">
+                  {projects.map((project) => (
+                    <ProjectCard key={(project as any).id} project={project} tasks={tasks as any} isLight={isLight} />
+                  ))}
+                </div>
+              ) : (
+                <div
+                  className={cx(
+                    "p-8 text-center",
+                    isLight ? "rounded-2xl border-2 border-black" : "rounded-2xl bg-white/5 shadow-[0_8px_30px_-20px_rgba(0,0,0,0.6)]"
+                  )}
+                >
+                  <p className={cx("text-sm", isLight ? "text-black/70" : "text-muted-foreground")}>
+                    Aún no se han creado proyectos para este equipo.
+                  </p>
+                </div>
+              )}
+            </section>
+            {/* --- 👇 CAMBIO 5: NUEVA SECCIÓN - Tareas Asignadas al Admin --- */}
+            <section>
+              <div className="mb-4 flex items-center justify-between">
+                <h2 className={cx("text-xl font-extrabold tracking-tight", isLight ? "text-black" : "")}>
+                  Mis Tareas Asignadas {/* O Tareas Asignadas a Mí */}
+                </h2>
+                <span className={cx("text-xs", isLight ? "text-black/70" : "text-muted-foreground")}>
+                  {adminTasksSorted.length}
+                </span>
               </div>
-            ) : (
-              <div
-                className={cx(
-                  "p-8 text-center",
-                  isLight ? "rounded-2xl border-2 border-black" : "rounded-2xl bg-white/5 shadow-[0_8px_30px_-20px_rgba(0,0,0,0.6)]"
-                )}
-              >
-                <p className={cx("text-sm", isLight ? "text-black/70" : "text-muted-foreground")}>
-                  Aún no se han creado proyectos para este equipo.
-                </p>
-              </div>
-            )}
-          </section>
 
+              {adminTasksSorted.length > 0 ? (
+                <div className="grid grid-cols-1 gap-4">
+                  {adminTasksSorted.map((task) => (
+                    <DashboardTaskCard
+                      key={task.id}
+                      task={task}
+                      isLight={isLight}
+                      onSubtaskToggle={onSubtaskToggle}
+                      updatingSubtaskId={updatingSubtaskId}
+                      onArchiveTask={onArchiveTask}
+                      archivingTaskId={archivingTaskId}
+                      projects={projectsName}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div className={cx("p-8 text-center", isLight ? "rounded-2xl border-2 border-black" : "rounded-2xl bg-white/5")}>
+                  <CheckCircle2 className={cx("mx-auto mb-3 h-8 w-8", isLight ? "text-black" : "text-emerald-500")} />
+                  <p className={cx("text-sm", isLight ? "text-black/70" : "text-muted-foreground")}>
+                    No tienes tareas asignadas actualmente.
+                  </p>
+                </div>
+              )}
+            </section>
+            {/* --- Fin Nueva Sección --- */}
+
+          </div> {/* Fin Columna Principal */}
           {/* Lateral */}
           <aside className="space-y-8">
             <div

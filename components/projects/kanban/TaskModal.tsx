@@ -14,7 +14,7 @@ import {
   addSubtask as apiAddSubtask,
   removeSubtask as apiRemoveSubtask,
   updateSubtaskTitle,
-} from "@/services/kanbanService";
+} from "@/services/kanbanService"; // Asumo que este es el path correcto
 import { X, Plus, Trash2 } from "lucide-react";
 
 // shadcn/ui Select para resolver el dropdown blanco en modo oscuro
@@ -57,13 +57,16 @@ export default function TaskModal({
   // Form state
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [assignedToId, setAssignedToId] = useState<string | undefined>(undefined);
+  // 👇 CAMBIO: De un string a un array de strings
+  const [assignedToIds, setAssignedToIds] = useState<string[]>([]);
   const [priority, setPriority] = useState<"low" | "medium" | "high">("medium");
   const [dueDate, setDueDate] = useState(""); // YYYY-MM-DD
   const [tagIds, setTagIds] = useState<string[]>([]);
   const [subtasks, setSubtasks] = useState<Partial<Subtask>[]>([]);
 
   // Control state
+  // 👇 CAMBIO: Añadido estado para IDs de asignados originales (para diff)
+  const [originalAssignedIds, setOriginalAssignedIds] = useState<string[]>([]);
   const [originalSubtasks, setOriginalSubtasks] = useState<Subtask[]>([]);
   const [originalTagIds, setOriginalTagIds] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -73,7 +76,7 @@ export default function TaskModal({
   const formRef = useRef<HTMLFormElement | null>(null);
   const titleRef = useRef<HTMLInputElement | null>(null);
 
-  // Helpers fecha
+  // ... (Helpers de fecha y efectos de teclado no cambian) ...
   const dateFromInput = (d?: string) => (d ? new Date(`${d}T00:00:00`) : undefined);
   const normalizeDate = (value: unknown): Date | undefined => {
     if (!value) return undefined;
@@ -87,7 +90,6 @@ export default function TaskModal({
     return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
   };
 
-  // Cerrar con ESC y enviar con Cmd/Ctrl+Enter
   const closeOnEsc = useCallback(
     (e: KeyboardEvent) => {
       if (!isOpen) return;
@@ -105,7 +107,6 @@ export default function TaskModal({
     return () => window.removeEventListener("keydown", closeOnEsc);
   }, [isOpen, closeOnEsc]);
 
-  // Autoselección de título al abrir
   useEffect(() => {
     if (isOpen) setTimeout(() => titleRef.current?.focus(), 50);
   }, [isOpen]);
@@ -117,7 +118,12 @@ export default function TaskModal({
     if (taskToEdit) {
       setTitle(taskToEdit.title);
       setDescription(taskToEdit.description || "");
-      setAssignedToId(taskToEdit.assignedToId);
+      
+      // 👇 CAMBIO: Usar 'assignedToIds' (el array de strings)
+      const initialAssignedIds = taskToEdit.assignedToIds || [];
+      setAssignedToIds(initialAssignedIds);
+      setOriginalAssignedIds(initialAssignedIds);
+
       setPriority(taskToEdit.priority);
 
       const d = normalizeDate(taskToEdit.dueDate);
@@ -135,7 +141,8 @@ export default function TaskModal({
       // Crear
       setTitle("");
       setDescription("");
-      setAssignedToId(undefined);
+      setAssignedToIds([]); // 👈 CAMBIO: Resetear a array vacío
+      setOriginalAssignedIds([]); // 👈 CAMBIO: Resetear a array vacío
       setPriority("medium");
       setDueDate("");
       setTagIds([]);
@@ -146,7 +153,7 @@ export default function TaskModal({
     }
   }, [isOpen, taskToEdit]);
 
-  // Subtasks local handlers
+  // ... (Handlers de Subtasks no cambian) ...
   const handleSubtaskChange = (index: number, newTitle: string) => {
     setSubtasks((prev) => {
       const copy = [...prev];
@@ -154,7 +161,6 @@ export default function TaskModal({
       return copy;
     });
   };
-
   const handleAddSubtaskLocal = () => setSubtasks((s) => [...s, { title: "", completed: false }]);
   const handleRemoveSubtaskLocal = (index: number) => setSubtasks((s) => s.filter((_, i) => i !== index));
 
@@ -179,8 +185,11 @@ export default function TaskModal({
         const core: Record<string, any> = {};
         if (title !== taskToEdit.title) core.title = title;
         if (description !== (taskToEdit.description || "")) core.description = description;
-        if (assignedToId !== taskToEdit.assignedToId) core.assignedToId = assignedToId || null;
         if (priority !== taskToEdit.priority) core.priority = priority;
+        
+        // 👇 CAMBIO: Diff de asignados (comparando arrays)
+        const assignedChanged = JSON.stringify([...assignedToIds].sort()) !== JSON.stringify([...originalAssignedIds].sort());
+        if (assignedChanged) core.assignedToIds = assignedToIds;
 
         // Due date diff (comparar por YMD)
         const originalDate = normalizeDate(taskToEdit.dueDate);
@@ -195,18 +204,14 @@ export default function TaskModal({
         const tagsChanged = JSON.stringify([...tagIds].sort()) !== JSON.stringify([...originalTagIds].sort());
         if (tagsChanged) promises.push(setTaskTags(taskToEdit.id, tagIds, userId, teamId));
 
-        // Subtasks diffs
+        // ... (La lógica de diff de Subtasks no cambia) ...
         const originalIds = new Set(originalSubtasks.map((s) => s.id));
         const currentIds = new Set(subtasks.filter((s) => s.id).map((s) => s.id!));
-
-        // Deletes
         for (const os of originalSubtasks) {
           if (!currentIds.has(os.id)) {
             promises.push(apiRemoveSubtask(os.id!, taskToEdit.id, userId, teamId));
           }
         }
-
-        // Updates / Creates
         for (const cs of subtasks) {
           if (cs.id) {
             if (originalIds.has(cs.id)) {
@@ -219,7 +224,7 @@ export default function TaskModal({
             promises.push(apiAddSubtask(taskToEdit.id, cs.title!.trim(), userId, teamId));
           }
         }
-
+        
         await Promise.all(promises);
       } else {
         // Create
@@ -233,8 +238,9 @@ export default function TaskModal({
           dueDate: dateFromInput(dueDate),
           tagIds,
           subtaskTitles: subtasks.map((s) => (s.title || "").trim()).filter(Boolean),
+          assignedToIds: assignedToIds, // 👈 CAMBIO: Pasar el array de IDs
         };
-        if (assignedToId) payload.assignedToId = assignedToId;
+        // (ya no se necesita el 'if (assignedToId)...')
         await createTask(payload);
       }
 
@@ -249,7 +255,7 @@ export default function TaskModal({
     }
   };
 
-  // Delete
+  // ... (Delete no cambia) ...
   const handleDelete = async () => {
     if (!isEditMode || !taskToEdit || userRole !== "admin") return;
     if (!window.confirm("¿Eliminar esta tarea? Esta acción no se puede deshacer.")) return;
@@ -272,15 +278,13 @@ export default function TaskModal({
 
   if (!isOpen) return null;
 
-  // Estilos consistentes
+  // ... (Estilos consistentes no cambian) ...
   const inputClass = isLight
     ? "h-11 w-full rounded-2xl border-2 border-black bg-transparent px-3 text-sm text-black placeholder:text-black/50 outline-none"
     : "h-11 w-full rounded-2xl bg-transparent px-3 text-sm outline-none transition ring-2 ring-white/20 placeholder:text-muted-foreground/70 focus-visible:ring-violet-400/70";
-
   const areaClass = isLight
     ? "min-h-[110px] w-full rounded-2xl border-2 border-black bg-transparent px-3 py-2 text-sm text-black placeholder:text-black/50 outline-none"
     : "min-h-[110px] w-full rounded-2xl bg-transparent px-3 py-2 text-sm outline-none transition ring-2 ring-white/20 placeholder:text-muted-foreground/70 focus-visible:ring-violet-400/70";
-
   const pillClass = (active?: boolean) =>
     isLight
       ? `inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs border-2 ${
@@ -289,12 +293,9 @@ export default function TaskModal({
       : `inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs ring-2 ${
           active ? "ring-violet-400/70 bg-white/10" : "ring-white/20 hover:ring-violet-400/60"
         }`;
-
   const onOverlayClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (e.target === e.currentTarget) onClose();
   };
-
-  // Clases de Select (trigger y content) para ambos modos
   const selectTriggerClass = isLight
     ? "h-11 rounded-2xl border-2 border-black bg-transparent text-left"
     : "h-11 rounded-2xl bg-transparent text-left ring-2 ring-white/20";
@@ -321,7 +322,7 @@ export default function TaskModal({
         }
         onMouseDown={(e) => e.stopPropagation()}
       >
-        {/* Header */}
+        {/* Header (no cambia) */}
         <div
           className={
             isLight
@@ -348,7 +349,7 @@ export default function TaskModal({
         {/* Body */}
         <form id="task-form" ref={formRef} onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-5 py-5">
           <div className="space-y-6">
-            {/* Título */}
+            {/* Título (no cambia) */}
             <div>
               <label htmlFor="title" className={isLight ? "mb-1 block text-xs font-semibold" : "mb-1 block text-xs font-medium text-muted-foreground"}>
                 Título *
@@ -365,7 +366,7 @@ export default function TaskModal({
               />
             </div>
 
-            {/* Descripción */}
+            {/* Descripción (no cambia) */}
             <div>
               <label htmlFor="description" className={isLight ? "mb-1 block text-xs font-semibold" : "mb-1 block text-xs font-medium text-muted-foreground"}>
                 Descripción
@@ -380,32 +381,48 @@ export default function TaskModal({
               />
             </div>
 
-            {/* Grid Asignación / Prioridad (Select shadcn para dark correcto) */}
+            {/* Grid Asignación / Prioridad */}
             <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-              {/* Asignar a */}
+              
+              {/* 👇 CAMBIO: Reemplazado <Select> por un sistema de "pills" */}
               <div>
-                <label className={isLight ? "mb-1 block text-xs font-semibold" : "mb-1 block text-xs font-medium text-muted-foreground"}>
+                <span className={isLight ? "mb-1 block text-xs font-semibold" : "mb-1 block text-xs font-medium text-muted-foreground"}>
                   Asignar a
-                </label>
-                <Select
-                  value={assignedToId ?? "none"}
-                  onValueChange={(v) => setAssignedToId(v === "none" ? undefined : v)}
-                >
-                  <SelectTrigger className={selectTriggerClass} aria-label="Asignar a">
-                    <SelectValue placeholder="Sin asignar" />
-                  </SelectTrigger>
-                  <SelectContent className={selectContentClass} sideOffset={6} position="popper" align="start">
-                    <SelectItem value="none">Sin asignar</SelectItem>
-                    {teamMembers.map((m) => (
-                      <SelectItem key={m.uid} value={m.uid}>
-                        {m.displayName || m.email}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                </span>
+                <div className={isLight ? "min-h-[46px] rounded-2xl border-2 border-black p-2" : "min-h-[46px] rounded-2xl p-2 ring-2 ring-white/20"}>
+                  {teamMembers.length > 0 ? (
+                    <div className="flex flex-wrap gap-2">
+                      {teamMembers.map((member) => {
+                        const active = assignedToIds.includes(member.uid);
+                        return (
+                          <button
+                            key={member.uid}
+                            type="button"
+                            onClick={() =>
+                              setAssignedToIds((prev) =>
+                                prev.includes(member.uid)
+                                  ? prev.filter((id) => id !== member.uid)
+                                  : [...prev, member.uid]
+                              )
+                            }
+                            className={pillClass(active)}
+                            title={member.displayName || member.email}
+                          >
+                            {/* (Opcional: puedes poner un avatar aquí) */}
+                            {member.displayName || member.email}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <span className={isLight ? "text-xs text-black/60" : "text-xs text-muted-foreground"}>
+                      No hay miembros en el equipo
+                    </span>
+                  )}
+                </div>
               </div>
 
-              {/* Prioridad */}
+              {/* Prioridad (no cambia) */}
               <div>
                 <label className={isLight ? "mb-1 block text-xs font-semibold" : "mb-1 block text-xs font-medium text-muted-foreground"}>
                   Prioridad
@@ -426,6 +443,8 @@ export default function TaskModal({
               </div>
             </div>
 
+            {/* ... (Resto del formulario: Fecha, Etiquetas, Subtareas, Error no cambian) ... */}
+            
             {/* Grid Fecha / Etiquetas */}
             <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
               <div>
@@ -434,8 +453,6 @@ export default function TaskModal({
                 </label>
                 <input id="dueDate" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} className={inputClass} />
               </div>
-
-              {/* Etiquetas */}
               <div>
                 <span className={isLight ? "mb-1 block text-xs font-semibold" : "mb-1 block text-xs font-medium text-muted-foreground"}>Etiquetas</span>
                 <div className={isLight ? "min-h-[46px] rounded-2xl border-2 border-black p-2" : "min-h-[46px] rounded-2xl p-2 ring-2 ring-white/20"}>
@@ -519,10 +536,11 @@ export default function TaskModal({
                 {error}
               </p>
             )}
+
           </div>
         </form>
 
-        {/* Footer */}
+        {/* Footer (no cambia) */}
         <div className={isLight ? "flex flex-shrink-0 items-center justify-between gap-4 border-t-2 border-black px-5 py-4" : "flex flex-shrink-0 items-center justify-between gap-4 px-5 py-4 ring-1 ring-inset ring-white/10"}>
           <div>
             {isEditMode && userRole === "admin" && (

@@ -6,7 +6,7 @@ import { useTheme } from "next-themes";
 import { getProjectById } from "@/services/projectService"; // 1. Importar el servicio
 import { Project, User, Tag } from "@/types"; // 2. Importar el tipo Project
 import { Button } from "@/components/ui/button"; // Importar para el nuevo botón
-import { Search, Plus, User as UserIcon, Tag as TagIcon, X, Link2, Settings } from "lucide-react";
+import { Search, Plus, User as UserIcon, Tag as TagIcon, X, Link2, Settings, Loader2, ArchiveIcon } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Command,
@@ -30,6 +30,10 @@ interface ProjectHeaderProps {
   selectedTags: string[];
   onTagFilterChange: (tagIds: string[]) => void;
   onNewTaskClick: () => void;
+  userRole: "admin" | "member" | null;
+  currentUserId?: string;
+  onArchiveAllDone: () => void;
+  isArchivingAll: boolean;
 }
 
 export default function ProjectHeader({
@@ -43,6 +47,10 @@ export default function ProjectHeader({
   selectedTags,
   onTagFilterChange,
   onNewTaskClick,
+  userRole,
+  currentUserId,
+  onArchiveAllDone,
+  isArchivingAll,
 }: ProjectHeaderProps) {
   const { resolvedTheme } = useTheme();
   const isLight = resolvedTheme === "light";
@@ -131,11 +139,10 @@ export default function ProjectHeader({
                   {project.name}
                 </h1>
                 <span
-                  className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold capitalize ${
-                    project.status === "active"
-                      ? "bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300"
-                      : "bg-gray-100 text-gray-800 dark:bg-gray-800/50 dark:text-gray-300"
-                  }`}
+                  className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold capitalize ${project.status === "active"
+                    ? "bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300"
+                    : "bg-gray-100 text-gray-800 dark:bg-gray-800/50 dark:text-gray-300"
+                    }`}
                 >
                   {project.status === "active" ? "Activo" : "Archivado"}
                 </span>
@@ -148,20 +155,20 @@ export default function ProjectHeader({
               )}
 
               {project.urls && project.urls.length > 0 && (
-                 <div className="mt-3 flex flex-wrap items-center gap-4">
-                    {project.urls.map(url => (
-                        <a 
-                            key={url.id}
-                            href={url.link}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1.5 text-sm font-medium text-sky-600 hover:text-sky-700 dark:text-sky-400 dark:hover:text-sky-300 transition-colors"
-                        >
-                            <Link2 className="h-4 w-4" />
-                            {url.label}
-                        </a>
-                    ))}
-                 </div>
+                <div className="mt-3 flex flex-wrap items-center gap-4">
+                  {project.urls.map(url => (
+                    <a
+                      key={url.id}
+                      href={url.link}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 text-sm font-medium text-sky-600 hover:text-sky-700 dark:text-sky-400 dark:hover:text-sky-300 transition-colors"
+                    >
+                      <Link2 className="h-4 w-4" />
+                      {url.label}
+                    </a>
+                  ))}
+                </div>
               )}
             </>
           ) : (
@@ -172,28 +179,64 @@ export default function ProjectHeader({
 
         {/* Columna derecha: Acciones */}
         <div className="flex flex-shrink-0 items-center gap-2">
-            {/* 6. BOTÓN DE CONFIGURACIÓN AÑADIDO */}
-            <Button variant="outline" size="icon" asChild>
-                <Link href={`/projects/${projectId}/settings`}>
-                    <Settings className="h-5 w-5" />
-                    <span className="sr-only">Configuración del Proyecto</span>
-                </Link>
-            </Button>
 
-            {/* Botón existente de Nueva Tarea (sin cambios) */}
+          {/* --- 👇 CAMBIO: Añadir botón/link a Archivo --- */}
+          {/* Visible para todos los miembros */}
+          <Button variant="outline" size="icon" asChild title="Ver tareas archivadas">
+            <Link href={`/projects/${projectId}/archive`}>
+              <ArchiveIcon className="h-5 w-5" />
+              <span className="sr-only">Tareas Archivadas</span>
+            </Link>
+          </Button>
+          {/* --- Fin del botón/link --- */}
+
+          {/* Botones de Admin */}
+          {userRole === 'admin' && (
+            <> {/* Usamos Fragment para agrupar botones de admin */}
+              {/* Botón Archivar Completadas (existente) */}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onArchiveAllDone}
+                disabled={isArchivingAll}
+                className="hidden sm:inline-flex"
+              >
+                {isArchivingAll ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <ArchiveIcon className="mr-2 h-4 w-4" /> // Reutilizamos icono
+                )}
+                Archivar Completadas
+              </Button>
+
+              {/* Botón de Configuración (existente) */}
+              <Button variant="outline" size="icon" asChild title="Configuración del proyecto">
+                <Link href={`/projects/${projectId}/settings`}>
+                  <Settings className="h-5 w-5" />
+                  <span className="sr-only">Configuración del Proyecto</span>
+                </Link>
+              </Button>
+            </>
+          )}
+
+          {/* Botón Nueva Tarea (Visible para Admin) */}
+          {userRole === 'admin' && (
             <button
-                onClick={onNewTaskClick}
-                className={
+              onClick={onNewTaskClick}
+              className={
                 isLight
-                    ? "inline-flex h-11 items-center gap-2 rounded-2xl border-2 border-black px-4 font-semibold text-black transition-colors hover:bg-black hover:text-white"
-                    : "relative inline-flex h-11 items-center gap-2 rounded-2xl bg-gradient-to-r from-indigo-500 via-violet-500 to-fuchsia-500 px-4 font-semibold text-white shadow-md transition-all hover:from-indigo-400 hover:via-violet-500 hover:to-fuchsia-400 active:scale-[0.99]"
-                }
-                aria-label="Añadir tarea"
+                  ? "inline-flex h-11 items-center gap-2 rounded-2xl border-2 border-black px-4 font-semibold text-black transition-colors hover:bg-black hover:text-white"
+                  : "relative inline-flex h-11 items-center gap-2 rounded-2xl bg-gradient-to-r from-indigo-500 via-violet-500 to-fuchsia-500 px-4 font-semibold text-white shadow-md transition-all hover:from-indigo-400 hover:via-violet-500 hover:to-fuchsia-400 active:scale-[0.99]"
+              }
+              aria-label="Añadir tarea"
+              disabled={isArchivingAll}
             >
-                <Plus size={18} />
-                Añadir tarea
+              <Plus size={18} />
+              Añadir tarea
             </button>
-        </div>
+          )}
+
+        </div> {/* Cierre del div flex de acciones */}
       </div>
 
       {/* Filtros */}
