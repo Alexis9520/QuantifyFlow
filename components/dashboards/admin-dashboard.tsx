@@ -19,6 +19,7 @@ import {
   Calendar,
 } from "lucide-react";
 import { DashboardTaskCard } from "./DashboardTaskCard";
+import { ProjectCard } from "../projects/ProjectCard";
 
 // Utils fecha (robusta)
 const toDateSafe = (value: unknown): Date | null => {
@@ -120,98 +121,6 @@ const StatusBadge = ({ status, isLight }: { status?: string; isLight: boolean })
   };
   const { label, className } = map[status || ""] || map.default;
   return <span className={cx("rounded-full px-2.5 py-1 text-xs font-medium", className)}>{label}</span>;
-};
-
-const ProjectCard = ({
-  project,
-  tasks,
-  isLight,
-}: {
-  project: Project;
-  tasks: Array<{ status?: string; projectId?: string | number }>;
-  isLight: boolean;
-}) => {
-  const projectId = String((project as any).id ?? (project as any).projectId ?? "");
-  const projectTasks = Array.isArray(tasks) ? tasks.filter((t) => String(t.projectId ?? "") === projectId) : [];
-
-  const totals = {
-    all: projectTasks.length || (project as any).taskCount || 0,
-    todo: projectTasks.filter((t) => t.status === "todo").length,
-    progress: projectTasks.filter((t) => t.status === "in-progress").length,
-    done: projectTasks.filter((t) => t.status === "done" || t.status === "completed").length,
-  };
-
-  const percent = totals.all ? Math.round((totals.done / totals.all) * 100) : 0;
-
-  if (isLight) {
-    return (
-      <div className="rounded-2xl border-2 border-black p-5">
-        <div className="flex items-start justify-between gap-3">
-          <h4 className="text-base font-extrabold text-black tracking-tight">{project.name}</h4>
-          <StatusBadge status={(project as any).status} isLight />
-        </div>
-        <p className="mt-2 text-sm text-black/70">{project.description || "Sin descripción."}</p>
-
-        <div className="mt-4">
-          <div className="mb-2 flex items-center justify-between text-xs text-black/70">
-            <span>Progreso</span>
-            <span className="font-semibold text-black">{percent}%</span>
-          </div>
-          <div className="h-3 w-full overflow-hidden rounded-full border-2 border-black">
-            <div className="h-full bg-black transition-[width] duration-700" style={{ width: `${percent}%` }} />
-          </div>
-
-          <div className="mt-3 flex items-center gap-4 text-xs text-black">
-            <span className="inline-flex items-center gap-1">
-              <Circle className="h-3.5 w-3.5" /> {totals.todo}
-            </span>
-            <span className="inline-flex items-center gap-1">
-              <PlayCircle className="h-3.5 w-3.5" /> {totals.progress}
-            </span>
-            <span className="inline-flex items-center gap-1">
-              <CheckCircle2 className="h-3.5 w-3.5" /> {totals.done}
-            </span>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="group relative overflow-hidden rounded-2xl bg-[linear-gradient(180deg,rgba(255,255,255,0.04),transparent)] p-5 shadow-[0_8px_30px_-20px_rgba(0,0,0,0.6)] transition-transform hover:scale-[1.01]">
-      <div className="absolute -right-12 -top-12 h-32 w-32 rounded-full bg-primary/10 blur-3xl transition-transform group-hover:scale-110" />
-      <div className="relative z-10 space-y-3">
-        <div className="flex items-start justify-between gap-3">
-          <h4 className="text-base font-semibold tracking-tight">{project.name}</h4>
-          <StatusBadge status={(project as any).status} isLight={false} />
-        </div>
-        <p className="text-sm text-muted-foreground line-clamp-2">{project.description || "Sin descripción."}</p>
-        <div className="mt-2">
-          <div className="mb-1 flex items-center justify-between text-xs text-muted-foreground">
-            <span>Progreso</span>
-            <span>{percent}%</span>
-          </div>
-          <div className="h-2 w-full overflow-hidden rounded-full bg-muted/60">
-            <div
-              className="h-full rounded-full bg-gradient-to-r from-indigo-500 via-violet-500 to-fuchsia-500 transition-[width] duration-700"
-              style={{ width: `${percent}%` }}
-            />
-          </div>
-          <div className="mt-2 flex items-center gap-3 text-xs text-muted-foreground">
-            <span className="inline-flex items-center gap-1">
-              <Circle className="h-3 w-3 text-zinc-400" /> {totals.todo}
-            </span>
-            <span className="inline-flex items-center gap-1">
-              <PlayCircle className="h-3 w-3 text-indigo-400" /> {totals.progress}
-            </span>
-            <span className="inline-flex items-center gap-1">
-              <CheckCircle2 className="h-3 w-3 text-emerald-400" /> {totals.done}
-            </span>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
 };
 
 const Avatar = ({ name, src, isLight }: { name?: string | null; src?: string | null; isLight: boolean }) => {
@@ -317,13 +226,13 @@ const ActivityItem = ({ log, isLight }: { log: ActivityLog; isLight: boolean }) 
 interface AdminDashboardProps {
   userName: string | null;
   adminData: AdminDashboardData | null; // Sigue recibiendo el tipo completo
-  projectsName: Project[]; 
+  projectsName: Project[];
   isLoadingProjects: boolean;
   onSubtaskToggle: (taskId: string, subId: string, newStatus: boolean) => void;
   updatingSubtaskId: string | null;
   onArchiveTask: (taskId: string) => void;
   archivingTaskId: string | null;
-  
+
 }
 
 export function AdminDashboard({
@@ -360,13 +269,13 @@ export function AdminDashboard({
   const tasksDone = tasks.filter((t: any) => t.status === "done" || t.status === "completed").length;
   const activeProjects = projects.filter((p: any) => p.status === "active").length;
   const adminTasksSorted = React.useMemo(() => {
-        return [...adminAssignedTasks].sort((a, b) => {
-            const ad = toDateSafe(a.dueDate)?.getTime() ?? Number.POSITIVE_INFINITY;
-            const bd = toDateSafe(b.dueDate)?.getTime() ?? Number.POSITIVE_INFINITY;
-            if (ad !== bd) return ad - bd;
-            return a.title.localeCompare(b.title);
-        });
-    }, [adminAssignedTasks]);
+    return [...adminAssignedTasks].sort((a, b) => {
+      const ad = toDateSafe(a.dueDate)?.getTime() ?? Number.POSITIVE_INFINITY;
+      const bd = toDateSafe(b.dueDate)?.getTime() ?? Number.POSITIVE_INFINITY;
+      if (ad !== bd) return ad - bd;
+      return a.title.localeCompare(b.title);
+    });
+  }, [adminAssignedTasks]);
 
   return (
     <div className={cx("w-full", isLight && "bg-white text-black")}>
@@ -407,7 +316,11 @@ export function AdminDashboard({
               {projects.length > 0 ? (
                 <div className="grid grid-cols-1 gap-5 md:grid-cols-2 2xl:grid-cols-3">
                   {projects.map((project) => (
-                    <ProjectCard key={(project as any).id} project={project} tasks={tasks as any} isLight={isLight} />
+                    <ProjectCard
+                      key={project.id}
+                      project={project}
+                    // Notice: No 'userRole' or 'onArchive' passed
+                    />
                   ))}
                 </div>
               ) : (

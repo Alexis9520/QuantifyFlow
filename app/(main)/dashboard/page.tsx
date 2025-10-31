@@ -14,6 +14,7 @@ import { AdminDashboardWrapper } from '@/components/dashboards/admin-dashboard-w
 export default async function DashboardPage() {
   const user = await getCurrentUser();
 
+
   if (!user) {
     redirect('/login');
   }

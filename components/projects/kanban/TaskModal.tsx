@@ -118,7 +118,7 @@ export default function TaskModal({
     if (taskToEdit) {
       setTitle(taskToEdit.title);
       setDescription(taskToEdit.description || "");
-      
+
       // 👇 CAMBIO: Usar 'assignedToIds' (el array de strings)
       const initialAssignedIds = taskToEdit.assignedToIds || [];
       setAssignedToIds(initialAssignedIds);
@@ -164,6 +164,16 @@ export default function TaskModal({
   const handleAddSubtaskLocal = () => setSubtasks((s) => [...s, { title: "", completed: false }]);
   const handleRemoveSubtaskLocal = (index: number) => setSubtasks((s) => s.filter((_, i) => i !== index));
 
+  const notifyDiscord = async (payload: any) => {
+    fetch('/api/notify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    }).catch(err => {
+
+      console.warn("No se pudo disparar la notificación:", err);
+    });
+  };
   // Submit
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -177,6 +187,9 @@ export default function TaskModal({
     setError(null);
     const toastId = toast.loading(isEditMode ? "Guardando cambios..." : "Creando tarea...");
 
+    // 👇 NUEVO: Variables para controlar la notificación
+    let finalTaskId: string | null = null;
+    let shouldNotify = false;
     try {
       if (isEditMode && taskToEdit) {
         const promises: Promise<any>[] = [];
@@ -186,10 +199,13 @@ export default function TaskModal({
         if (title !== taskToEdit.title) core.title = title;
         if (description !== (taskToEdit.description || "")) core.description = description;
         if (priority !== taskToEdit.priority) core.priority = priority;
-        
+
         // 👇 CAMBIO: Diff de asignados (comparando arrays)
         const assignedChanged = JSON.stringify([...assignedToIds].sort()) !== JSON.stringify([...originalAssignedIds].sort());
-        if (assignedChanged) core.assignedToIds = assignedToIds;
+        if (assignedChanged) {
+          core.assignedToIds = assignedToIds;
+          shouldNotify = true; // 👈 NUEVO: Marcamos para notificar
+        }
 
         // Due date diff (comparar por YMD)
         const originalDate = normalizeDate(taskToEdit.dueDate);
@@ -224,8 +240,9 @@ export default function TaskModal({
             promises.push(apiAddSubtask(taskToEdit.id, cs.title!.trim(), userId, teamId));
           }
         }
-        
+
         await Promise.all(promises);
+        finalTaskId = taskToEdit.id;
       } else {
         // Create
         const payload: any = {
@@ -240,9 +257,42 @@ export default function TaskModal({
           subtaskTitles: subtasks.map((s) => (s.title || "").trim()).filter(Boolean),
           assignedToIds: assignedToIds, // 👈 CAMBIO: Pasar el array de IDs
         };
-        // (ya no se necesita el 'if (assignedToId)...')
-        await createTask(payload);
+
+        const newTaskId = await createTask(payload);
+        finalTaskId = newTaskId; // 👈 NUEVO: Guardamos el nuevo ID
+
+        if (assignedToIds.length > 0) {
+          shouldNotify = true; // 👈 NUEVO: Es nueva y tiene asignados
+        }
+
+
       }
+
+      // --- 👇 LÓGICA DE NOTIFICACIÓN ---
+      if (shouldNotify && finalTaskId) {
+        // Filtramos la lista COMPLETA de miembros para obtener los objetos de los asignados
+        const assignedUsers = teamMembers.filter(member =>
+          assignedToIds.includes(member.uid)
+        );
+
+        // Creamos el payload exacto que n8n espera
+        const n8nPayload = {
+          id: finalTaskId,
+          title: title, // El título del estado actual del formulario
+          description: description,
+          priority: priority,
+          // Mapeamos al formato {id, name}
+          assignedTo: assignedUsers.map(user => ({
+            id: user.uid,
+            name: user.displayName || user.email // O el campo de nombre que uses
+          })),
+          url_tarea: `http://37.60.233.86:3002/` // (Cambia esta URL por la tuya)
+        };
+
+        // ¡Llamamos a nuestra función helper!
+        await notifyDiscord(n8nPayload);
+      }
+      //
 
       toast.success(isEditMode ? "Cambios guardados." : "Tarea creada.", { id: toastId });
       onSave();
@@ -251,6 +301,9 @@ export default function TaskModal({
       console.error("ERROR: No se pudo guardar la tarea.", err);
       toast.error("No se pudo guardar la tarea. Inténtalo de nuevo.", { id: toastId });
       setError("No se pudo guardar la tarea. Inténtalo de nuevo.");
+      setIsSubmitting(false);
+    } finally {
+      // 👇 NUEVO: movemos esto al 'finally' para que se ejecute siempre
       setIsSubmitting(false);
     }
   };
@@ -287,12 +340,10 @@ export default function TaskModal({
     : "min-h-[110px] w-full rounded-2xl bg-transparent px-3 py-2 text-sm outline-none transition ring-2 ring-white/20 placeholder:text-muted-foreground/70 focus-visible:ring-violet-400/70";
   const pillClass = (active?: boolean) =>
     isLight
-      ? `inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs border-2 ${
-          active ? "border-black bg-black text-white" : "border-black text-black hover:bg-black/5"
-        }`
-      : `inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs ring-2 ${
-          active ? "ring-violet-400/70 bg-white/10" : "ring-white/20 hover:ring-violet-400/60"
-        }`;
+      ? `inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs border-2 ${active ? "border-black bg-black text-white" : "border-black text-black hover:bg-black/5"
+      }`
+      : `inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs ring-2 ${active ? "ring-violet-400/70 bg-white/10" : "ring-white/20 hover:ring-violet-400/60"
+      }`;
   const onOverlayClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (e.target === e.currentTarget) onClose();
   };
@@ -383,7 +434,7 @@ export default function TaskModal({
 
             {/* Grid Asignación / Prioridad */}
             <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-              
+
               {/* 👇 CAMBIO: Reemplazado <Select> por un sistema de "pills" */}
               <div>
                 <span className={isLight ? "mb-1 block text-xs font-semibold" : "mb-1 block text-xs font-medium text-muted-foreground"}>
@@ -444,7 +495,7 @@ export default function TaskModal({
             </div>
 
             {/* ... (Resto del formulario: Fecha, Etiquetas, Subtareas, Error no cambian) ... */}
-            
+
             {/* Grid Fecha / Etiquetas */}
             <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
               <div>

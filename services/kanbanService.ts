@@ -105,7 +105,7 @@ export const updateTaskStatus = async (
     taskId,
     teamId,
     userId,
-    action: 'status_change',
+    action: 'Cambio el estado de una tarea',
     details: { newStatus },
   });
 };
@@ -129,7 +129,7 @@ export const updateSubtaskCompletion = async (
     taskId,
     teamId,
     userId,
-    action: completed ? 'subtask_completed' : 'subtask_uncompleted',
+    action: completed ? 'Subtarea hecha' : 'Subtarea reabierta',
     details: { subtaskId }
   });
 
@@ -215,7 +215,7 @@ export const createTask = async (taskData: CreateTaskData): Promise<string> => {
     taskId: taskRef.id,
     teamId: taskData.teamId,
     userId: taskData.createdBy,
-    action: 'task_created',
+    action: 'Tarea creada',
     details: { title: taskData.title },
   });
 
@@ -236,7 +236,7 @@ export const updateTask = async (
     taskId,
     teamId,
     userId,
-    action: 'task_updated',
+    action: 'Tarea actualizada',
     details: { updatedFields: Object.keys(updates) },
   });
 };
@@ -261,7 +261,7 @@ export const deleteTask = async (taskId: string, userId: string, teamId: string)
     taskId,
     teamId,
     userId,
-    action: 'task_deleted',
+    action: 'Tarea eliminada',
   });
 };
 
@@ -278,7 +278,7 @@ export const addSubtask = async (taskId: string, title: string, userId: string, 
     taskId,
     teamId,
     userId,
-    action: 'subtask_added',
+    action: 'Subtarea añadida',
     details: { title },
   });
 
@@ -292,7 +292,7 @@ export const removeSubtask = async (subtaskId: string, taskId: string, userId: s
     taskId,
     teamId,
     userId,
-    action: 'subtask_removed',
+    action: 'Subtarea eliminada',
     details: { subtaskId },
   });
 };
@@ -315,7 +315,7 @@ export const setTaskTags = async (taskId: string, newTagIds: string[], userId: s
     taskId,
     teamId,
     userId,
-    action: 'tags_updated',
+    action: 'Tags de tarea actualizados',
     details: { newTagIds },
   });
 };
@@ -336,7 +336,7 @@ export const updateSubtaskTitle = async (
     taskId,
     teamId,
     userId,
-    action: 'subtask_updated',
+    action: 'Subtarea actualizada',
     details: { subtaskId, newTitle },
   });
 };
@@ -488,7 +488,7 @@ export const archiveTask = async (
     taskId,
     teamId,
     userId,
-    action: 'task_archived',
+    action: 'Tarea archivada',
   });
 };
 
@@ -623,7 +623,7 @@ export const archiveAllDoneTasks = async (
      projectId, // Log a nivel de proyecto
      teamId,
      userId,
-     action: 'bulk_archive_done_tasks',
+     action: 'Archivado masivo de tareas completadas',
      details: { count },
   });
   
@@ -652,7 +652,7 @@ export const unarchiveTask = async (
     taskId, 
     teamId,
     userId,
-    action: 'task_unarchived',
+    action: 'Tarea desarchivada',
     // projectId // Opcional
   });
 };

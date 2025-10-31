@@ -12,7 +12,10 @@ import { CreateProjectModal } from "@/components/projects/CreateProjectModal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import Spinner from "@/components/ui/spinner";
-import { PlusCircle, Search, RefreshCcw } from "lucide-react";
+import { PlusCircle, Search, RefreshCcw, ArchiveIcon, Archive } from "lucide-react";
+import { archiveProject } from "@/services/projectService";
+import { TeamMemberRol } from "@/types";
+import Link from "next/link";
 
 export default function ProjectsPage() {
   const { user } = useAuth();
@@ -84,7 +87,20 @@ export default function ProjectsPage() {
       toast.error("Proyecto creado, pero falló refrescar la lista.", { id: t });
     }
   };
-
+  // 👈 2. Crea el handler para archivar
+  const handleArchiveProject = async (projectId: string) => {
+    const t = toast.loading("Archivando proyecto...");
+    try {
+      // Llama al servicio
+      await archiveProject(projectId);
+      // Refresca la lista (el hook 'useProjects' se encarga de recargar)
+      await refreshProjects();
+      toast.success("Proyecto archivado.", { id: t });
+    } catch (e) {
+      console.error("Error al archivar:", e);
+      toast.error("No se pudo archivar el proyecto.", { id: t });
+    }
+  };
   if (error) {
     return (
       <div className="w-full px-4 py-10 sm:px-6 lg:px-8 2xl:px-12">
@@ -123,7 +139,6 @@ export default function ProjectsPage() {
               }
             />
           </div>
-
           {/* Actualizar */}
           <Button
             type="button"
@@ -139,7 +154,24 @@ export default function ProjectsPage() {
             <RefreshCcw className="mr-2 h-4 w-4" />
             Actualizar
           </Button>
-
+          {/* --- 👇 BOTÓN NUEVO AQUÍ --- */}
+          <Button
+            asChild // Para que funcione como un Link
+            variant={isLight ? "ghost" : "outline"} // 'outline' se ve bien en modo oscuro
+            className={
+              isLight
+                ? "h-11 rounded-2xl border-2 border-black bg-transparent px-4 font-semibold text-black hover:bg-black hover:text-white"
+                : "h-11 rounded-2xl px-4" // Estilo consistente
+            }
+          >
+            <Link href="/projects/archived">
+              <> {/* Fragmento para 'asChild' */}
+                <Archive className="mr-2 h-4 w-4" />
+                Ver Archivados
+              </>
+            </Link>
+          </Button>
+          {/* --- 👆 FIN BOTÓN NUEVO --- */}
           {/* Crear proyecto */}
           {isAdmin && (
             <CreateProjectModal teamId={currentTeam?.teamId} onProjectCreated={handleProjectCreated}>
@@ -200,7 +232,12 @@ export default function ProjectsPage() {
       ) : (
         <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
           {projects.map((project) => (
-            <ProjectCard key={project.id} project={project} />
+            <ProjectCard
+              key={project.id}
+              project={project}
+              userRole={userRole as TeamMemberRol} // 👈 Prop de rol
+              onArchive={handleArchiveProject} // 👈 Prop de función handler
+            />
           ))}
         </div>
       )}

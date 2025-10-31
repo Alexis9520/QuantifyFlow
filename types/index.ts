@@ -36,16 +36,25 @@ export interface TeamMemberWithDetails extends User { // Extiende User para incl
   teamMemberDocId: string; // El ID del documento en teamMembers, necesario para updates
 }
 
+export interface TaskCountBreakdown {
+  all: number;
+  todo: number;
+  inProgress: number;
+  done: number;
+}
+
 export interface Project {
-  id: string
-  teamId: string
-  name: string
-  description?: string
-  status: "active" | "archived"
-  taskCount?: number
-  createdAt: Date
-  updatedAt: Date
-  urls: ProjectUrl[]
+  id: string
+  teamId: string
+  name: string
+  description?: string
+  status: "active" | "archived"
+  createdAt: Date
+  updatedAt: Date
+  urls: ProjectUrl[]
+  
+  // 👇 CAMBIO: Reemplazamos taskCount por taskCounts
+  taskCounts?: TaskCountBreakdown 
 }
 
 export interface ProjectUrl {
@@ -97,7 +106,6 @@ export interface Task {
   createdAt: Date
   updatedAt: Date
   dueDate?: Date | Timestamp;
-  //new archivation fields
   isArchived: boolean;
   archivedAt?: Timestamp;
   archivedBy?: string;

@@ -1,27 +1,60 @@
-import { type NextRequest, NextResponse } from "next/server"
+import { type NextRequest, NextResponse } from "next/server";
 
 export function middleware(request: NextRequest) {
-  const { pathname } = request.nextUrl
-  const token = request.cookies.get("session")?.value
+  const { pathname, searchParams } = request.nextUrl;
+  const token = request.cookies.get("session")?.value;
 
-  // NUEVO: Redirige desde la raíz a la página correcta
+  console.log(`[Middleware Ligero] Path: ${pathname}, Token: ${token ? "Existe" : "No Existe"}`);
+
+  const protectedRoutes = ["/dashboard", "/projects", "/team"];
+  const publicRoutes = ["/login", "/register"];
+
+  const isProtectedRoute = protectedRoutes.some(p => pathname.startsWith(p));
+  const isPublicRoute = publicRoutes.some(p => pathname.startsWith(p));
+
+  // --- Lógica de Rutas Protegidas ---
+  if (isProtectedRoute && !token) {
+    console.log("[Middleware Ligero] Bloqueado: No hay token. Redirigiendo a /login.");
+    const response = NextResponse.redirect(new URL("/login?session=expired", request.url));
+    response.cookies.delete("session");
+    return response;
+  }
+
+  // --- Lógica de Rutas Públicas (Login/Register) ---
+  if (isPublicRoute && token) {
+    
+    // ¡AQUÍ ESTÁ LA MAGIA!
+    // Revisa si vienes de una redirección del servidor.
+    const sessionInvalidFlag = searchParams.get("session") === "invalid" || 
+                               searchParams.get("session") === "expired";
+
+    if (sessionInvalidFlag) {
+      // El Layout (servidor) nos echó.
+      // Nos quedamos en /login y, AHORA SÍ, borramos la cookie.
+      console.log("[Middleware Ligero] Flag de sesión inválida detectado. Permitiendo /login y borrando cookie.");
+      
+      // Esta es la forma correcta de borrar la cookie
+      const response = NextResponse.next(); // Permite ver /login
+      response.cookies.delete("session");
+      return response;
+    }
+
+    // Si no hay flag, es un usuario logueado que va a /login por error.
+    console.log("[Middleware Ligero] Usuario con token en ruta pública. Redirigiendo a /dashboard.");
+    return NextResponse.redirect(new URL("/dashboard", request.url));
+  }
+  
+  // --- Lógica de la Raíz ("/") ---
   if (pathname === "/") {
-    return NextResponse.redirect(new URL(token ? "/dashboard" : "/login", request.url))
+    const url = token ? "/dashboard" : "/login";
+    console.log(`[Middleware Ligero] Raíz. Redirigiendo a ${url}`);
+    return NextResponse.redirect(new URL(url, request.url));
   }
 
-  // Protege las rutas privadas
-  if ((pathname.startsWith("/dashboard") || pathname.startsWith("/projects") || pathname.startsWith("/team")) && !token) {
-    return NextResponse.redirect(new URL("/login", request.url))
-  }
-
-  // Si el usuario está logueado, no puede ver login/register
-  if ((pathname === "/login" || pathname === "/register") && token) {
-    return NextResponse.redirect(new URL("/dashboard", request.url))
-  }
-
-  return NextResponse.next()
+  // Permite el paso
+  return NextResponse.next();
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
-}
+  matcher: ["/((?!api|_next/static|_next/image|favicon.ico).*)"],
+};

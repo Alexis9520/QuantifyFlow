@@ -1,5 +1,5 @@
 
-import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, getDoc, orderBy, limit } from 'firebase/firestore';
 import { db } from '@/lib/firebase'; // Asegúrate de que esta ruta sea correcta
 import { 
   User, 
@@ -68,14 +68,21 @@ export const getUserDashboardData = async (userId: string): Promise<UserDashboar
 
       // --- Obtener registros de actividad ---
       (async () => {
-        const logsQuery = query(collection(db, 'activityLog'), where('userId', '==', userId)); // Corregido: activityLogs
-        const logsSnap = await getDocs(logsQuery);
-        const logsData = logsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as ActivityLog));
+        // Asegúrate de importar orderBy y limit de "firebase/firestore"
+        const logsQuery = query(
+          collection(db, 'activityLog'), 
+          where('userId', '==', userId),
+          orderBy('createdAt', 'desc'), // <-- 1. Ordena por fecha (más reciente primero)
+          limit(20)                     // <-- 2. Limita a los 20 primeros
+        ); 
         
-        // LOG: Resultado de la obtención de logs de actividad
-        console.log(`[DashboardService] ✅ Obtenidos ${logsData.length} registros de actividad.`);
-        return logsData;
-      })(),
+        const logsSnap = await getDocs(logsQuery);
+        const logsData = logsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as ActivityLog));
+        
+        // LOG: Resultado de la obtención de logs de actividad
+        console.log(`[DashboardService] ✅ Obtenidos ${logsData.length} registros de actividad.`);
+        return logsData;
+      })(),
 
       // --- Obtener registros de tiempo ---
       (async () => {

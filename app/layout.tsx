@@ -8,6 +8,7 @@ import { ThemeProvider as NextThemesProvider } from "next-themes"
 import "./globals.css"
 import { AuthProvider } from "@/context/AuthContext"
 import { ProvidersContainer } from "@/components/ProvidersContainer"
+import { AuthListener } from "@/context/AuthListener"
 
 export const metadata: Metadata = {
   title: "QuantifyFlow",
@@ -21,7 +22,7 @@ export default function RootLayout({
 }>) {
   return (
     <html
-      lang="en"
+      lang="es"
       suppressHydrationWarning
       className={`${GeistSans.variable} ${GeistMono.variable}`}
     >
@@ -33,6 +34,7 @@ export default function RootLayout({
         {/* <link rel="manifest" href="/site.webmanifest" /> */}
       </head>
       <body className={`font-sans antialiased`}>
+        <AuthListener>
         <NextThemesProvider
           attribute="class"
           defaultTheme="system"
@@ -42,6 +44,7 @@ export default function RootLayout({
             <ProvidersContainer>{children}</ProvidersContainer>
           </AuthProvider>
         </NextThemesProvider>
+        </AuthListener>
         <Analytics />
       </body>
     </html>

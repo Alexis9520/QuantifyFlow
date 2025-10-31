@@ -86,6 +86,40 @@ const StatusBadge = ({ status, isLight }: { status?: string; isLight: boolean })
     </span>
   );
 };
+
+const TagChip = ({ tag, isLight }: { tag: Tag; isLight: boolean }) => {
+  // Color por defecto (gris-400 de Tailwind) si no se provee uno
+  const color = tag.color || '#9ca3af'; 
+
+  // --- Modo Claro (Borde Negro + Punto de Color) ---
+  if (isLight) {
+    return (
+      <span className="inline-flex items-center rounded-full border-2 border-black px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-black">
+        {/* Punto de color */}
+        <span
+          className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full"
+          style={{ backgroundColor: color }}
+        />
+        {tag.tagName}
+      </span>
+    );
+  }
+
+  // --- Modo Normal/Oscuro (Chip Gris + Punto de Color) ---
+  // Este es el estilo que te gustó
+  return (
+    <span
+      className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 ring-inset ring-gray-500/10 bg-gray-50 dark:bg-gray-400/10 text-gray-600 dark:text-gray-400"
+    >
+      {/* Punto de color */}
+      <span
+        className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full"
+        style={{ backgroundColor: color }}
+      />
+      {tag.tagName}
+    </span>
+  );
+};
 interface DashboardTaskCardProps {
   task: TaskWithDetails;
   isLight: boolean;
@@ -170,6 +204,14 @@ export function DashboardTaskCard({
               <span className="font-semibold text-black">{due}</span>
             </div>
           )}
+          {task.tags && task.tags.length > 0 && (
+            <div className="inline-flex items-center gap-2">
+              <span className="text-black/70">Tags:</span>
+              {task.tags.map((tag) => (
+                <TagChip key={tag.id} tag={tag} isLight />
+              ))}
+            </div>
+          )}
         </div>
 
         {subtasks.length > 0 && (
@@ -278,6 +320,14 @@ export function DashboardTaskCard({
             <span>{due}</span>
           </div>
         )}
+        {task.tags && task.tags.length > 0 && (
+          <div className="inline-flex items-center gap-1.5">
+            <span className="text-muted-foreground">Tags:</span>
+            {task.tags.map((tag) => (
+              <TagChip key={tag.id} tag={tag} isLight={false} />
+            ))}
+          </div>
+        )}
       </div>
 
       {subtasks.length > 0 && (
